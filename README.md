@@ -1,9 +1,5 @@
 ## Feature Learning for Dimensionality Reduction toward Maximal Extraction of Hidden Patterns
 
-Note
------
-* Because pymanopt added many major updates in April 10-26, 2022, we updated this repository, accordingly. But, you can still find the code before the updates in the supplementary materials submitted via PCS.
-
 Content
 -----
 * fealm: FEALM framework and the exemplifying method for UMAP.
@@ -18,7 +14,7 @@ Setup
 
 ### Requirements
 * Python3 (latest), pymanopt (https://github.com/pymanopt/pymanopt)
-* Note: Tested on macOS Big Sur.
+* Note: Tested on macOS Big Sur and Winows 10.
 
 ### Setup
 * Install pymanopt from the github repository (DO NOT use pip3 install pymanopt)
@@ -39,8 +35,12 @@ Setup
 
     `pip3 install .`
 
+* You can test with sample.py
+
+    `pip3 install matplotlib sklearn`
+
 ### Usage
-* See the examples in each directory.
-  - Detailed documentations will be released upon publication.
+* Examples can be found in "sample.py" and "case_studies"
+* API documentation can be found in "fealm/fealm.py" (WIP)
 
 ******
