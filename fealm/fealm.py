@@ -19,48 +19,75 @@ import igraph as ig
 import louvain
 
 
-# potential way to cluster embedding results instead of SpectralClustering
-# this clustering doesn't require specifying k
-def cluster_by_modularity(
-        data,
-        n_neighbors=15,
-        graph_type='simple',
-        partition_type=louvain.RBConfigurationVertexPartition,
-        resolution_parameter=2):
-    '''
-    graph_type: 'simple', 'fuzzy', 'precomputed'
-    partition_type: louvain.RBConfigurationVertexPartition, etc.
-    '''
-
-    if graph_type == 'precomputed':
-        A = data
-    elif graph_type == 'simple':
-        A = gf.nearest_nbr_graph(data,
-                                 n_neighbors=n_neighbors,
-                                 to_networx_graph=False)
-    elif graph_type == 'fuzzy':
-        A = gf.fuzzy_nearest_nbr_graph(data,
-                                       n_neighbors=n_neighbors,
-                                       to_networx_graph=False)
-    sources, targets = A.nonzero()
-    edges = zip(sources.tolist(), targets.tolist())
-    weights = A[sources, targets].A1
-    g = ig.Graph(directed=False)
-    g.add_vertices(A.shape[0])
-    edges = list(zip(sources, targets))
-    g.add_edges(edges)
-    g.es['weight'] = weights
-
-    partition = louvain.find_partition(
-        g,
-        partition_type=partition_type,
-        weights=np.array(g.es['weight']),
-        resolution_parameter=resolution_parameter)
-
-    return np.array(partition.membership)
-
-
 class FEALM():
+    """FEALM. Feature learning framework for dimensionlity reduction methods.
+    Implementation of the framework introduced in Fujiwara et al.,
+    "Feature Learning for Dimensionality Reduction toward Maximal Extraction of
+    Hidden Patterns".
+    For details of parameters, please also refer to the paper.
+
+    Parameters need to be tuned based on a dataset are:
+    - n_neighbors
+    - n_components (if "w" is not used as the form for feature learning)
+    - n_repeats
+    - pso_maxtime
+    - pso_niter
+    - form_and_sizes
+
+    Parameters
+    ----------
+    n_neighbors: int
+        Number of neighbors used when constructing a graph. k in the paper.
+    n_components: int, optional, (default=None)
+        Number of components to take if generating linear transformations
+        (e.g., "wMv" in the above paper). m' in the paper. This is not needed to
+        be indicated if only applying feature scaling ("w" in the above paper).
+    graph_dist: function, optional, (default=none)
+        Function used for computing graph dissimilarities. d_DR in the paper.
+        When None, NSD with beta=1 is used.
+    graph_dist_aggregation: function, optional, (default=np.min)
+        Aggregation/reduce function used for computing overall graph
+        dissimilarities. Phi in the paper.
+    graph_func: function, optional, (default=None)
+        Function used for graph generation. When None, k-nearest neigbor
+        graph generation is used. f_Gr in the paper.
+    n_repeats: int, optional, (default=5)
+        Number of iterative generations of feature leraning results.
+        r in the paper.
+    pso_maxtime: float, optional, (default=1000)
+        Maximum time (in second) spent for particle swarm optimization.
+    pso_niter: int, optional, (default=10)
+        Number or optimization iterations for particle swarm optimization.
+        Higher number, more optimized results.
+    pso_njobs: int, optional, (default=-1)
+        Number of processes used for particle swarm optimization. When -1, all
+        available processes are used.
+    form_and_sizes: dictionary, optional (default = {'w': {'population_size': 100, 'n_results': 10, 'result_selection': 'P'}, 'p_wMv': {'population_size': 100, 'n_results': 10, 'result_selection': 'P'}})
+        Dictionary indicating projection matrix forms considered in feature
+        learning and the corresponding optimization settings.
+        The dicitonary must contain a key indicating the matrix form but
+        the optimization settings are optional.
+        - form: select from 'w', 'p_wMv', 'no_constraint' (or other supported options, 'M', 'wM', 'Mv', 'wMv').
+            - 'w': use only feature scaling (w in the paper)
+            - 'p_wMv': use feature scaling and transformation (wMv in the paper). Note: while 'wMv' is performing optmization over Sphere and Grasmann manifolds. 'p_wMv' (psuedo wMv) is performing optimization over Euclidean manifold to provide more flexibility during the optimization. After the optimization, fit the projection matrix to the constraint of wMv.
+            - 'no_constraint': apply no constraint when computing projection matrix P.
+        - population_size: number of particles used for particle swarm optimization
+        - n_results: number of non-best results included. s in the paper.
+        - result_selection: way of selection of non-best results. 'P' or 'random'
+            - 'P': based on a projection matrix similarity (recommended)
+            - 'random': random sampling
+    Attributes
+    ----------
+    Ps: list of numpy 2d array
+        Projection matrices generated through feature learning
+    best_P_indices: list of integers
+        Indices indicating which projection matrices are corresponding to the
+        best solution from the particle swarm optimization.
+    ----------
+    Examples
+    --------
+    See "sample.py" or scripts in "case_studies" directory
+    """
 
     def __init__(
             self,
@@ -75,14 +102,14 @@ class FEALM():
             pso_njobs=-1,
             form_and_sizes={
                 'w': {
-                    'population_size': 500,
-                    'n_results': 20,
-                    'result_selection': 'random'
+                    'population_size': 100,
+                    'n_results': 10,
+                    'result_selection': 'P'
                 },
                 'no_constraint': {
-                    'population_size': 500,
-                    'n_results': 20,
-                    'result_selection': 'random'
+                    'population_size': 100,
+                    'n_results': 10,
+                    'result_selection': 'P'
                 }
             },
             # TODO: make save_snn_lsdsig more generic
@@ -192,6 +219,19 @@ class FEALM():
         return P[:, idx_sort_by_col_sum_sign]
 
     def fit(self, X, Gs=[]):
+        """Perform feature learning on input data.
+
+        Parameters
+        ----------
+        X: array-like, shape(n_samples, n_attributes)
+            Target data.
+        Gs: list of graphs, optional, (default=[])
+            Already produced graphs that will be referred when producing a new
+            graph (if existed). A set of graphs, Gi, in the paper.
+        Returns
+        -------
+        self.
+        """
         self.Ps = []
         self.best_P_indices = []
 
@@ -216,9 +256,10 @@ class FEALM():
 
                 population_size = 100 if not 'population_size' in sizes else sizes[
                     'population_size']
-                n_results = polulationsize if not 'n_results' in sizes else sizes[
-                    'n_results']
-                result_selection = 'random' if not 'result_selection' in sizes else sizes[
+                n_results = max(1, int(
+                    polulationsize /
+                    10)) if not 'n_results' in sizes else sizes['n_results']
+                result_selection = 'P' if not 'result_selection' in sizes else sizes[
                     'result_selection']
 
                 max_cost_evaluations = population_size * self.pso_niter
@@ -352,6 +393,27 @@ class FEALM():
                                    'min_dist': 0.1
                                },
                                clustering_on_emb_of_Ys=False):
+        """Find representative projection matrices from Ps.
+        Note: here only important parameters are described.
+        Parameters
+        ----------
+        X: array-like, shape(n_samples, n_attributes)
+            Target data.
+        X2Y_dr_inst: instance of dimensionality reduction method
+            This instance is used when generting Y (embedding result) from X.
+        n_representatives: int, optional, (default=10)
+            Number of prpjection matrices to be recommended.
+        Returns
+        -------
+        dictionary containing various information
+            - 'repr_Ps': representative projection matrices
+            - 'repr_Ys': embedding results corresponding to 'repr_Ps'
+            - 'closest_Y_indices': indices of closest Y to the cluster centers
+            - 'Ys': all embeding results (corresponding to all Ps)
+            - 'D_of_Ys': dissimilarities of Ys
+            - 'emb_of_Ys': embedding result of Ys (embedding of embeddings)
+            - 'cluster_ids': cluster id assigned to each Y
+        """
         if Ps is None:
             Ps = self.Ps
 
@@ -402,3 +464,44 @@ class FEALM():
             'emb_of_Ys': emb_of_Ys,
             'cluster_ids': cluster_ids
         }
+
+
+# # potential way to cluster embedding results instead of SpectralClustering
+# # this clustering doesn't require specifying k
+# def cluster_by_modularity(
+#         data,
+#         n_neighbors=15,
+#         graph_type='simple',
+#         partition_type=louvain.RBConfigurationVertexPartition,
+#         resolution_parameter=2):
+#     '''
+#     graph_type: 'simple', 'fuzzy', 'precomputed'
+#     partition_type: louvain.RBConfigurationVertexPartition, etc.
+#     '''
+#
+#     if graph_type == 'precomputed':
+#         A = data
+#     elif graph_type == 'simple':
+#         A = gf.nearest_nbr_graph(data,
+#                                  n_neighbors=n_neighbors,
+#                                  to_networx_graph=False)
+#     elif graph_type == 'fuzzy':
+#         A = gf.fuzzy_nearest_nbr_graph(data,
+#                                        n_neighbors=n_neighbors,
+#                                        to_networx_graph=False)
+#     sources, targets = A.nonzero()
+#     edges = zip(sources.tolist(), targets.tolist())
+#     weights = A[sources, targets].A1
+#     g = ig.Graph(directed=False)
+#     g.add_vertices(A.shape[0])
+#     edges = list(zip(sources, targets))
+#     g.add_edges(edges)
+#     g.es['weight'] = weights
+#
+#     partition = louvain.find_partition(
+#         g,
+#         partition_type=partition_type,
+#         weights=np.array(g.es['weight']),
+#         resolution_parameter=resolution_parameter)
+#
+#     return np.array(partition.membership)
