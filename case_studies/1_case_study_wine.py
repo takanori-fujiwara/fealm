@@ -61,7 +61,7 @@ if __name__ == '__main__':
     P0 = np.diag([1] * X.shape[1])
     cluster_result = fealm.find_representative_Ps(X,
                                                   XP_dr_inst=umap,
-                                                  Ps=fealm.Ps + [P0],
+                                                  Ps=Ps + [P0],
                                                   n_representatives=10)
 
     repr_indices = cluster_result['repr_indices']

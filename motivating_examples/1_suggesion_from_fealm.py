@@ -68,7 +68,7 @@ if __name__ == '__main__':
     repr_Ps_info = fealm.find_representative_Ps(
         X,
         XP_dr_inst=UMAP(n_neighbors=n_neighbors, min_dist=min_dist),
-        Ps=fealm.Ps + [P0],
+        Ps=Ps + [P0],
         n_representatives=n_representatives)
 
     repr_Ys = repr_Ps_info['repr_Ys']
