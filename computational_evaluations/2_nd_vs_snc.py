@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 import fealm.graph_func as gf
-import fealm.graph_dist as gd
+import fealm.graph_dissim as gd
 
 if __name__ == '__main__':
     k = 15

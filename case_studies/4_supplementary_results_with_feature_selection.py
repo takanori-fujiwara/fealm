@@ -14,19 +14,6 @@ import pyreadstat  # please install via pip (pip3 install pyreadstat)
 from ppic_meta import metainfo
 
 if __name__ == '__main__':
-    tableau10 = {
-        'teal': '#78B7B2',
-        'blue': '#507AA6',
-        'orange': '#F08E39',
-        'red': '#DF585C',
-        'green': '#5BA053',
-        'purple': '#AF7BA1',
-        'yellow': '#ECC854',
-        'brown': '#9A7460',
-        'pink': '#FD9EA9',
-        'gray': '#BAB0AC'
-    }
-
     n_results = 20
     opt = OptSetProj()
 
@@ -39,8 +26,7 @@ if __name__ == '__main__':
     target_names = dataset.target_names
     feat_names = dataset.feature_names
     inst_names = np.arange(0, X.shape[1])
-    target_colors = np.array(
-        [tableau10['blue'], tableau10['orange'], tableau10['green']])
+    target_colors = np.array(['#507AA6', '#F08E39', '#5BA053'])
 
     scaler = preprocessing.StandardScaler()
     X = scaler.fit_transform(X)
@@ -55,10 +41,8 @@ if __name__ == '__main__':
              min_dist=min_dist).fit_transform(X_od)
     fig = fplot.plot_embeddings([Y],
                                 y + 1,
-                                palette=sns.color_palette([
-                                    tableau10['blue'], tableau10['orange'],
-                                    tableau10['green']
-                                ]))
+                                palette=sns.color_palette(
+                                    ['#507AA6', '#F08E39', '#5BA053']))
     fig.axes[0].set_title('Using only od280/od315')
     plt.savefig(f'./result/supplementary/od280od315_wine.pdf')
     plt.show()
@@ -69,10 +53,8 @@ if __name__ == '__main__':
              min_dist=min_dist).fit_transform(X_ci)
     fig = fplot.plot_embeddings([Y],
                                 y + 1,
-                                palette=sns.color_palette([
-                                    tableau10['blue'], tableau10['orange'],
-                                    tableau10['green']
-                                ]))
+                                palette=sns.color_palette(
+                                    ['#507AA6', '#F08E39', '#5BA053']))
     fig.axes[0].set_title('Using only color intensity')
     plt.savefig(f'./result/supplementary/colorintensity_wine.pdf')
     plt.show()
@@ -125,7 +107,7 @@ if __name__ == '__main__':
     y[y == 2] = 1  # republican
     y_to_name = {0: 'Dem', 1: 'Rep'}
     target_names = np.array(['Dem', 'Rep'])
-    target_colors = np.array([tableau10['blue'], tableau10['red']])
+    target_colors = np.array(['#507AA6', '#DF585C'])
 
     df.drop(['q4a'], axis=1, inplace=True)
     X = np.array(df)
@@ -149,7 +131,7 @@ if __name__ == '__main__':
     fig = fplot.plot_embeddings([Y],
                                 y + 1,
                                 palette=sns.color_palette(
-                                    [tableau10['blue'], tableau10['red']]))
+                                    ['#507AA6', '#DF585C']))
     fig.axes[0].set_title('Using only Q24 and Q31')
     plt.savefig(f'./result/supplementary/q24q31_ppic.pdf')
     plt.show()
@@ -162,7 +144,7 @@ if __name__ == '__main__':
     fig = fplot.plot_embeddings([Y],
                                 y + 1,
                                 palette=sns.color_palette(
-                                    [tableau10['blue'], tableau10['red']]))
+                                    ['#507AA6', '#DF585C']))
     fig.axes[0].set_title('Using only Q18, Q19, and D7')
     plt.savefig(f'./result/supplementary/q18q19d7_ppic.pdf')
     plt.show()

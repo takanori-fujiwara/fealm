@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 import fealm.graph_func as gf
-import fealm.graph_dist as gd
+import fealm.graph_dissim as gd
 from fealm.fealm import FEALM
 
 if __name__ == '__main__':
@@ -14,25 +14,18 @@ if __name__ == '__main__':
     list_of_n_jobs = [1, 2, 4, 8, 16]
     to_data_name = lambda n: f'./data/document_vec_n{n}_m{m}.npy'
 
-    form_and_sizes = {
-        'no_constraint': {
-            'population_size': 500,
-            'n_results': 1,
-            'result_selection': 'random'
-        }
-    }
-
     result = []
     for n in ns:
         X = np.load(to_data_name(n))
         for n_jobs in list_of_n_jobs:
             fealm = FEALM(n_neighbors=k,
+                          projection_form='no_constraint',
                           n_components=m_prime,
                           n_repeats=1,
-                          pso_maxtime=3600,
-                          pso_niter=10,
-                          pso_njobs=n_jobs,
-                          form_and_sizes=form_and_sizes)
+                          pso_population_size=500,
+                          pso_n_nonbest_solutions=0,
+                          pso_n_iterations=10,
+                          pso_n_jobs=n_jobs)
             s = time.time()
             fealm = fealm.fit(X)
             e = time.time()

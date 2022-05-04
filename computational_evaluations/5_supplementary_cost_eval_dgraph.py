@@ -8,7 +8,7 @@ import networkx as nx
 
 import netrd.distance as nd
 import fealm.graph_func as gf
-import fealm.graph_dist as gd
+import fealm.graph_dissim as gd
 
 from sklearn.neighbors import kneighbors_graph
 

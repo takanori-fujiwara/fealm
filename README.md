@@ -7,6 +7,8 @@ Content
 * computational_evaluations: Scripts used for Computational Evaluations.
 * case_studies: Scripts related to Case Studies.
 
+* Note: The UI is available in this repository: https://github.com/takanori-fujiwara/fealm-ui
+ 
 ******
 
 Setup

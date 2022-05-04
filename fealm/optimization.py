@@ -24,8 +24,8 @@ class Optimization():
 
     def __init__(self,
                  graph_func,
-                 graph_dist,
-                 graph_dist_aggregation=np.min,
+                 graph_dissim,
+                 graph_dissim_reduce_func=np.min,
                  solver=ParticleSwarm(),
                  form='wM',
                  n_trials_for_mat_decomp=5):
@@ -33,8 +33,8 @@ class Optimization():
         form: {'w', 'M', 'wM', 'Mv', 'wMv', 'p_wMv', 'no_constraint'}
         '''
         self.graph_func = graph_func
-        self.graph_dist = graph_dist
-        self.graph_dist_aggregation = graph_dist_aggregation
+        self.graph_dissim = graph_dissim
+        self.graph_dissim_reduce_func = graph_dissim_reduce_func
         self.solver = solver
         self.form = form
         self.n_trials_for_mat_decomp = n_trials_for_mat_decomp
@@ -56,21 +56,21 @@ class Optimization():
 
         return G
 
-    def _eval_dissim_graph(self, new_G, Gs, gd_params, gd_prerpcessed_data):
-        # gd_prerpcessed_data is like: [{'S1': S1, 'D1': D1}]
-        if gd_prerpcessed_data is None:
+    def _eval_dissim_graph(self, new_G, Gs, gd_params, gd_preprocessed_data):
+        # gd_preprocessed_data is like: [{'S1': S1, 'D1': D1}]
+        if gd_preprocessed_data is None:
             dissims = [
-                self.graph_dist(prev_G, new_G, **gd_params) for prev_G in Gs
+                self.graph_dissim(prev_G, new_G, **gd_params) for prev_G in Gs
             ]
         else:
             dissims = [
-                self.graph_dist(prev_G, new_G, **{
+                self.graph_dissim(prev_G, new_G, **{
                     **gd_params,
                     **gd_params2
-                }) for prev_G, gd_params2 in zip(Gs, gd_prerpcessed_data)
+                }) for prev_G, gd_params2 in zip(Gs, gd_preprocessed_data)
             ]
 
-        val = self.graph_dist_aggregation(dissims)
+        val = self.graph_dissim_reduce_func(dissims)
 
         return val
 
@@ -91,14 +91,14 @@ class Optimization():
                    lasso_coeff=0,
                    ridge_coeff=0,
                    gd_params={},
-                   gd_prerpcessed_data=None):
+                   gd_preprocessed_data=None):
         new_G = self._construct_graph(X, P)
 
         dissim = self._eval_dissim_graph(
             new_G,
             Gs,
             gd_params=gd_params,
-            gd_prerpcessed_data=gd_prerpcessed_data)
+            gd_preprocessed_data=gd_preprocessed_data)
         regularization_penalty = self._regularization_penalty(
             P, lasso_coeff=lasso_coeff, ridge_coeff=ridge_coeff)
 
@@ -116,7 +116,7 @@ class Optimization():
                        lasso_coeff=0,
                        ridge_coeff=0,
                        gd_params={},
-                       gd_prerpcessed_data=None):
+                       gd_preprocessed_data=None):
         '''
         form: w, M, wM, Mv, wMv, p_wMV, no_constraint
         '''
@@ -127,58 +127,63 @@ class Optimization():
             # np.diag(w)
             @pymanopt.function.autograd(manifold)
             def _cost_func(u):
-                return self._eval_cost(X,
-                                       P=np.diag(vec_len * u),
-                                       Gs=Gs,
-                                       lasso_coeff=lasso_coeff,
-                                       ridge_coeff=ridge_coeff,
-                                       gd_params=gd_params,
-                                       gd_prerpcessed_data=gd_prerpcessed_data)
+                return self._eval_cost(
+                    X,
+                    P=np.diag(vec_len * u),
+                    Gs=Gs,
+                    lasso_coeff=lasso_coeff,
+                    ridge_coeff=ridge_coeff,
+                    gd_params=gd_params,
+                    gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'M' or form == 'no_constraint':
             # M
             @pymanopt.function.autograd(manifold)
             def _cost_func(M):
-                return self._eval_cost(X,
-                                       P=M,
-                                       Gs=Gs,
-                                       lasso_coeff=lasso_coeff,
-                                       ridge_coeff=ridge_coeff,
-                                       gd_params=gd_params,
-                                       gd_prerpcessed_data=gd_prerpcessed_data)
+                return self._eval_cost(
+                    X,
+                    P=M,
+                    Gs=Gs,
+                    lasso_coeff=lasso_coeff,
+                    ridge_coeff=ridge_coeff,
+                    gd_params=gd_params,
+                    gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'wM':
             # np.diag(w) @ M
             @pymanopt.function.autograd(manifold)
             def _cost_func(u, M):
-                return self._eval_cost(X,
-                                       P=np.diag(vec_len * u) @ M,
-                                       Gs=Gs,
-                                       lasso_coeff=lasso_coeff,
-                                       ridge_coeff=ridge_coeff,
-                                       gd_params=gd_params,
-                                       gd_prerpcessed_data=gd_prerpcessed_data)
+                return self._eval_cost(
+                    X,
+                    P=np.diag(vec_len * u) @ M,
+                    Gs=Gs,
+                    lasso_coeff=lasso_coeff,
+                    ridge_coeff=ridge_coeff,
+                    gd_params=gd_params,
+                    gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'Mv':
             # M @ np.diag(v)
             @pymanopt.function.autograd(manifold)
             def _cost_func(M, u):
-                return self._eval_cost(X,
-                                       P=M @ np.diag(np.sqrt(len(u)) * u),
-                                       Gs=Gs,
-                                       lasso_coeff=lasso_coeff,
-                                       ridge_coeff=ridge_coeff,
-                                       gd_params=gd_params,
-                                       gd_prerpcessed_data=gd_prerpcessed_data)
+                return self._eval_cost(
+                    X,
+                    P=M @ np.diag(np.sqrt(len(u)) * u),
+                    Gs=Gs,
+                    lasso_coeff=lasso_coeff,
+                    ridge_coeff=ridge_coeff,
+                    gd_params=gd_params,
+                    gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'wMv':
             # np.diag(w) @ M @ np.diag(v)
             @pymanopt.function.autograd(manifold)
             def _cost_func(u1, M, u2):
-                return self._eval_cost(X,
-                                       P=np.diag(vec_len * u1) @ M @ np.diag(
-                                           np.sqrt(len(u2)) * u2),
-                                       Gs=Gs,
-                                       lasso_coeff=lasso_coeff,
-                                       ridge_coeff=ridge_coeff,
-                                       gd_params=gd_params,
-                                       gd_prerpcessed_data=gd_prerpcessed_data)
+                return self._eval_cost(
+                    X,
+                    P=np.diag(vec_len * u1) @ M @ np.diag(
+                        np.sqrt(len(u2)) * u2),
+                    Gs=Gs,
+                    lasso_coeff=lasso_coeff,
+                    ridge_coeff=ridge_coeff,
+                    gd_params=gd_params,
+                    gd_preprocessed_data=gd_preprocessed_data)
 
         # TODO: using *args can make here simpler, but it doesn't work with autograd
         # @pymanopt.function.Autograd
@@ -300,7 +305,7 @@ class Optimization():
             ridge_coeff=0,
             multiple_answers=False,
             gd_params={},
-            gd_prerpcessed_data=None):
+            gd_preprocessed_data=None):
         n_attrs = X.shape[1]
         manifold = self._gen_manifold(form=self.form,
                                       n_attrs=n_attrs,
@@ -313,7 +318,7 @@ class Optimization():
             lasso_coeff=lasso_coeff,
             ridge_coeff=ridge_coeff,
             gd_params=gd_params,
-            gd_prerpcessed_data=gd_prerpcessed_data)
+            gd_preprocessed_data=gd_preprocessed_data)
         self.problem = pymanopt.Problem(manifold=manifold, cost=cost_func)
 
         best, answers = (None, None)

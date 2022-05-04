@@ -3,6 +3,7 @@ import numpy as np
 from scipy.spatial.distance import squareform
 from scipy.stats import rankdata
 from sklearn.cluster import SpectralClustering
+from sklearn_extra.cluster import KMedoids
 # faster but memory leak can happen
 from pathos.multiprocessing import ProcessPool as Pool
 # slower but memory leak safe
@@ -10,7 +11,7 @@ from pathos.multiprocessing import ProcessPool as Pool
 
 from umap import UMAP
 
-import fealm.graph_dist as gd
+import fealm.graph_dissim as gd
 import fealm.graph_func as gf
 from fealm.solver import ParticleSwarm
 from fealm.optimization import Optimization
@@ -28,54 +29,60 @@ class FEALM():
 
     Parameters need to be tuned based on a dataset are:
     - n_neighbors
+    - projection_form
     - n_components (if "w" is not used as the form for feature learning)
     - n_repeats
-    - pso_maxtime
-    - pso_niter
-    - form_and_sizes
+    - pso_* (based on the problem size, you might need to set larger numebers)
 
     Parameters
     ----------
-    n_neighbors: int
+    n_neighbors: int, optional, (default=15)
         Number of neighbors used when constructing a graph. k in the paper.
+    projection_form: string, optional (default='w')
+        The projection matrix form/constraint used for optimization. Sselect
+        from 'w', 'p_wMv', 'no_constraint' (or other supported options,
+        'M', 'wM', 'Mv', 'wMv').
+        - 'w': only feature scaling (w in the paper)
+        - 'p_wMv': feature scaling and transformation (wMv in the paper).
+          Note: When 'wMv', optmization is over the union of Sphere, Grasmann,
+          and Sphere manifolds. But, when, 'p_wMv' (psuedo wMv) performs
+          optimization over Euclidean manifold to provide more flexibility
+          during the optimization; then the projection matrix will be fitted to
+          the constraint of wMv.
+        - 'no_constraint': apply no constraint when computing projection matrix P.
     n_components: int, optional, (default=None)
         Number of components to take if generating linear transformations
         (e.g., "wMv" in the above paper). m' in the paper. This is not needed to
         be indicated if only applying feature scaling ("w" in the above paper).
-    graph_dist: function, optional, (default=none)
-        Function used for computing graph dissimilarities. d_DR in the paper.
-        When None, NSD with beta=1 is used.
-    graph_dist_aggregation: function, optional, (default=np.min)
-        Aggregation/reduce function used for computing overall graph
-        dissimilarities. Phi in the paper.
-    graph_func: function, optional, (default=None)
-        Function used for graph generation. When None, k-nearest neigbor
-        graph generation is used. f_Gr in the paper.
     n_repeats: int, optional, (default=5)
         Number of iterative generations of feature leraning results.
         r in the paper.
-    pso_maxtime: float, optional, (default=1000)
-        Maximum time (in second) spent for particle swarm optimization.
-    pso_niter: int, optional, (default=10)
+    pso_n_nonbest_solutions: int, optional, (default=10)
+        Number of non-best results included. s in the paper.
+    pso_nonbest_solution_selection: string, optional, (default='projection_dissim')
+        Method used for the selection of non-best results. Select from
+        {'projection_dissim' or 'random'}.
+    pso_n_iterations: int, optional, (default=10)
         Number or optimization iterations for particle swarm optimization.
         Higher number, more optimized results.
-    pso_njobs: int, optional, (default=-1)
+    pso_n_jobs: int, optional, (default=-1)
         Number of processes used for particle swarm optimization. When -1, all
         available processes are used.
-    form_and_sizes: dictionary, optional (default = {'w': {'population_size': 100, 'n_results': 10, 'result_selection': 'P'}, 'p_wMv': {'population_size': 100, 'n_results': 10, 'result_selection': 'P'}})
-        Dictionary indicating projection matrix forms considered in feature
-        learning and the corresponding optimization settings.
-        The dicitonary must contain a key indicating the matrix form but
-        the optimization settings are optional.
-        - form: select from 'w', 'p_wMv', 'no_constraint' (or other supported options, 'M', 'wM', 'Mv', 'wMv').
-            - 'w': use only feature scaling (w in the paper)
-            - 'p_wMv': use feature scaling and transformation (wMv in the paper). Note: while 'wMv' is performing optmization over Sphere and Grasmann manifolds. 'p_wMv' (psuedo wMv) is performing optimization over Euclidean manifold to provide more flexibility during the optimization. After the optimization, fit the projection matrix to the constraint of wMv.
-            - 'no_constraint': apply no constraint when computing projection matrix P.
-        - population_size: number of particles used for particle swarm optimization
-        - n_results: number of non-best results included. s in the paper.
-        - result_selection: way of selection of non-best results. 'P' or 'random'
-            - 'P': based on a projection matrix similarity (recommended)
-            - 'random': random sampling
+    pso_max_time: float, optional, (default=1000)
+        Maximum time (in second) spent for particle swarm optimization.
+    graph_func: function, optional, (default=None)
+        Function used for graph generation. When None, k-nearest neigbor
+        graph generation is used. f_Gr in the paper.
+    graph_dissim: function, optional, (default=none)
+        Function used for computing graph dissimilarities. d_DR in the paper.
+        When None, NSD with beta=1 is used.
+    graph_dissim_reduce_func: function, optional, (default=np.min)
+        Reduce function used for computing overall graph
+        dissimilarities. Phi in the paper.
+    graph_dissim_preprocessing: bool, function, or None, optional, (default=None)
+        Function returning a dictionary containing preprocessed measures that
+        can be used to speed up dissimilarity computation with graph_dissim.
+        When None, S1 and sig1 in NSD will be precomputed for faster computation.
     Attributes
     ----------
     Ps: list of numpy 2d array
@@ -89,50 +96,53 @@ class FEALM():
     See "sample.py" or scripts in "case_studies" directory
     """
 
-    def __init__(
-            self,
-            n_neighbors,
-            n_components=None,
-            graph_dist=None,
-            graph_dist_aggregation=np.min,
-            graph_func=None,
-            n_repeats=5,
-            pso_maxtime=1000,
-            pso_niter=10,
-            pso_njobs=-1,
-            form_and_sizes={
-                'w': {
-                    'population_size': 100,
-                    'n_results': 10,
-                    'result_selection': 'P'
-                },
-                'no_constraint': {
-                    'population_size': 100,
-                    'n_results': 10,
-                    'result_selection': 'P'
-                }
-            },
-            # TODO: make save_snn_lsdsig more generic
-            save_snn_lsdsig=True):
+    def __init__(self,
+                 n_neighbors=15,
+                 n_repeats=5,
+                 projection_form='w',
+                 n_components=None,
+                 pso_n_nonbest_solutions=10,
+                 pso_nonbest_solution_selection='projection_dissim',
+                 pso_population_size=100,
+                 pso_n_iterations=10,
+                 pso_n_jobs=-1,
+                 pso_max_time=3600,
+                 graph_func=None,
+                 graph_dissim=None,
+                 graph_dissim_reduce_func=np.min,
+                 graph_dissim_preprocessing=None):
         self.n_neighbors = n_neighbors
+        self.projection_form = projection_form
         self.n_components = n_components
-        self.graph_dist = graph_dist
-        self.graph_dist_aggregation = graph_dist_aggregation
-        self.graph_func = graph_func
         self.n_repeats = n_repeats
-        self.form_and_sizes = form_and_sizes
-        self.save_snn_lsdsig = save_snn_lsdsig
-        self.pso_maxtime = pso_maxtime
-        self.pso_niter = pso_niter
-        self.pso_njobs = pso_njobs
+        self.pso_n_nonbest_solutions = pso_n_nonbest_solutions
+        self.pso_nonbest_solution_selection = pso_nonbest_solution_selection
+        self.pso_population_size = pso_population_size
+        self.pso_n_iterations = pso_n_iterations
+        self.pso_n_jobs = pso_n_jobs
+        self.pso_max_time = pso_max_time
+        self.graph_func = graph_func
+        self.graph_dissim = graph_dissim
+        self.graph_dissim_reduce_func = graph_dissim_reduce_func
+        self.graph_dissim_preprocessing = graph_dissim_preprocessing
 
         self.opt = None
         self.Ps = None
         self.best_P_indices = None
 
-        if self.graph_dist is None:
+        if self.pso_n_nonbest_solutions > self.pso_population_size:
+            print(
+                'pso_n_nonbest_solutions must not be larger than pso_population_size. pso_n_nonbest_solutions will be set to be pso_population_size'
+            )
+            self.pso_n_nonbest_solutions = self.pso_population_size
+
+        if self.graph_func is None:
+            self.graph_func = lambda X: gf.nearest_nbr_graph(
+                X, n_neighbors=self.n_neighbors, to_networx_graph=False)
+
+        if self.graph_dissim is None:
             # Neighbor and Shape Dissimilarity (NSD)
-            self.graph_dist = lambda G1, G2, S1=None, sig1=None: gd.nsd(
+            self.graph_dissim = lambda G1, G2, S1=None, sig1=None: gd.nsd(
                 G1,
                 G2,
                 S1=S1,
@@ -141,15 +151,17 @@ class FEALM():
                 beta=1)
             self.save_snn_lsdsig = True
 
-        if self.graph_func is None:
-            self.graph_func = lambda X: gf.nearest_nbr_graph(
-                X, n_neighbors=self.n_neighbors, to_networx_graph=False)
+        if self.graph_dissim_preprocessing is None:
+            self.graph_dissim_preprocessing = lambda G: {
+                'S1': gd._shared_neighbor_sim(G, k=self.n_neighbors),
+                'sig1': gd._lsd_trace_signature(G)
+            }
 
-    def _gen_comp_dist(self, Gs, graph_dist):
+    def _gen_comp_dist(self, Gs, graph_dissim):
 
         def comp_dist(ij):
             i, j = ij
-            return graph_dist(Gs[i], Gs[j])
+            return graph_dissim(Gs[i], Gs[j])
 
         return comp_dist
 
@@ -176,18 +188,6 @@ class FEALM():
     def _get_k_centers_of_Ps(self, Ps, k):
         D = self._dist_comp_parallel(Ps, dist_func=self._frobenius)
         kmed = KMedoids(n_clusters=k, metric='precomputed').fit(D)
-
-        return [Ps[idx] for idx in kmed.medoid_indices_]
-
-    def _get_k_Ps_based_on_Gs(self, Ps, k, log_scaling=True):
-        Gs = [self.opt._construct_graph(X, P) for P in Ps]
-        D = self._dist_comp_parallel(Gs, dist_func=self.graph_dist)
-
-        kmed = KMedoids(n_clusters=k, metric='precomputed')
-        if log_scaling:
-            kmed = kmed.fit(np.log(1 + D))
-        else:
-            kmed = kmed.fit(D)
 
         return [Ps[idx] for idx in kmed.medoid_indices_]
 
@@ -235,117 +235,91 @@ class FEALM():
         self.Ps = []
         self.best_P_indices = []
 
-        for form in self.form_and_sizes:
-            Gs_ = []
-            if len(Gs) == 0:
-                Gs_.append(self.graph_func(X))
+        Gs_ = []
+        if len(Gs) == 0:
+            Gs_.append(self.graph_func(X))
+        else:
+            Gs_ += Gs
+
+        gd_preprocessed_data = None
+        if self.graph_dissim_preprocessing:
+            gd_preprocessed_data = []
+            for G in Gs_:
+                gd_preprocessed_data.append(self.graph_dissim_preprocessing(G))
+
+        for i in range(self.n_repeats):
+            print(f'{i+1}th repeat')
+            max_cost_evaluations = self.pso_population_size * self.pso_n_iterations
+            solver = ParticleSwarm(max_time=self.pso_max_time,
+                                   max_cost_evaluations=max_cost_evaluations,
+                                   population_size=self.pso_population_size,
+                                   n_jobs=self.pso_n_jobs)
+
+            # use no_constraint when form is 'p_wMv'
+            self.opt = Optimization(
+                graph_func=self.graph_func,
+                graph_dissim=self.graph_dissim,
+                graph_dissim_reduce_func=self.graph_dissim_reduce_func,
+                solver=solver,
+                form=self.projection_form
+                if not self.projection_form == 'p_wMv' else 'no_constraint')
+
+            self.opt = self.opt.fit(X,
+                                    Gs=Gs_,
+                                    n_components=self.n_components,
+                                    multiple_answers=True,
+                                    gd_preprocessed_data=gd_preprocessed_data)
+
+            tmp_Ps = self.opt.Ps
+
+            if self.pso_n_nonbest_solutions == 0:
+                new_Ps = []
             else:
-                Gs_ += Gs
-
-            gd_prerpcessed_data = None
-            if self.save_snn_lsdsig:
-                gd_prerpcessed_data = []
-                for G in Gs_:
-                    S = gd._shared_neighbor_sim(G, k=self.n_neighbors)
-                    sig = gd._lsd_trace_signature(G)
-                    gd_prerpcessed_data.append({'S1': S, 'sig1': sig})
-
-            sizes = self.form_and_sizes[form]
-            for i in range(self.n_repeats):
-                print(f'{i+1}th repeat')
-
-                population_size = 100 if not 'population_size' in sizes else sizes[
-                    'population_size']
-                n_results = max(1, int(
-                    polulationsize /
-                    10)) if not 'n_results' in sizes else sizes['n_results']
-                result_selection = 'P' if not 'result_selection' in sizes else sizes[
-                    'result_selection']
-
-                max_cost_evaluations = population_size * self.pso_niter
-
-                solver = ParticleSwarm(
-                    max_time=self.pso_maxtime,
-                    max_cost_evaluations=max_cost_evaluations,
-                    population_size=population_size,
-                    n_jobs=self.pso_njobs)
-
-                # use no_constraint when form is 'p_wMv' to avoid computations
-                # for 'mat_decomp'
-                form_ = form
-                if form == 'p_wMv':
-                    form_ = 'no_constraint'
-
-                self.opt = Optimization(
-                    graph_func=self.graph_func,
-                    graph_dist=self.graph_dist,
-                    graph_dist_aggregation=self.graph_dist_aggregation,
-                    solver=solver,
-                    form=form_)
-
-                self.opt = self.opt.fit(
-                    X,
-                    Gs=Gs_,
-                    n_components=self.n_components,
-                    multiple_answers=True,
-                    gd_prerpcessed_data=gd_prerpcessed_data)
-
-                tmp_Ps = self.opt.Ps
-
-                if result_selection == 'random':
-                    indices = np.random.randint(len(tmp_Ps), size=n_results)
-                    new_Ps = [tmp_Ps[idx] for idx in indices]
-                elif result_selection == 'P':
-                    # make consistent signs to avoid high dissim when sign flipped
-                    # TODO: we should solve arbitrary column order as well
+                if self.pso_nonbest_solution_selection == 'projection_dissim':
                     tmp_Ps = [self._consistent_signs(P) for P in tmp_Ps]
-                    if not form == 'w':
+                    if not self.projection_form == 'w':
                         tmp_Ps = [self._consistent_scales(P) for P in tmp_Ps]
                         tmp_Ps = [self._consistent_order(P) for P in tmp_Ps]
 
-                    new_Ps = self._get_k_centers_of_Ps(tmp_Ps, n_results)
+                    new_Ps = self._get_k_centers_of_Ps(
+                        tmp_Ps, self.pso_n_nonbest_solutions)
+                else:
+                    if not self.pso_nonbest_solution_selection == 'random':
+                        print(
+                            'indicated pso_nonbest_solution_selection is not supported and "random" is used.'
+                        )
+                    indices = np.random.randint(
+                        len(tmp_Ps), size=self.pso_n_nonbest_solutions)
+                    new_Ps = [tmp_Ps[idx] for idx in indices]
 
-                elif result_selection == 'G':
-                    new_Ps = self._get_k_Ps_based_on_Gs(tmp_Ps, n_results)
-                elif result_selection == 'G_without_log':
-                    new_Ps = self._get_k_Ps_based_on_Gs(tmp_Ps,
-                                                        n_results,
-                                                        log_scaling=False)
+            # append the best (duplication might happen)
+            best_P = self._consistent_signs(self.opt.P)
+            if not self.projection_form == 'w':
+                best_P = self._consistent_scales(best_P)
+                best_P = self._consistent_order(best_P)
+            new_Ps.append(best_P)
 
-                # append the best (duplication might happen)
-                best_P = self._consistent_signs(self.opt.P)
-                new_Ps.append(best_P)
+            # restrict projection matrix being on wMv's manifold
+            if self.projection_form == 'p_wMv':
+                for i, P in enumerate(new_Ps):
+                    w, M, v = self.opt.mat_decomp(P)
+                    new_Ps[i] = np.diag(w) @ M @ np.diag(v)
 
-                if form == 'p_wMv':
-                    for i, P in enumerate(new_Ps):
-                        w, M, v = self.opt.mat_decomp(P)
-                        new_Ps[i] = np.diag(w) @ M @ np.diag(v)
+            self.Ps += new_Ps
+            self.best_P_indices.append(len(self.Ps) - 1)
 
-                self.Ps += new_Ps
-                self.best_P_indices.append(len(self.Ps) - 1)
+            # graph based on best P
+            new_G = self.graph_func(X @ new_Ps[-1])
+            Gs_.append(new_G)
 
-                # graph based on best P
-                new_G = self.graph_func(X @ new_Ps[-1])
-                Gs_.append(new_G)
-
-                if self.save_snn_lsdsig:
-                    S = gd._shared_neighbor_sim(new_G, k=self.n_neighbors)
-                    sig = gd._lsd_trace_signature(new_G)
-
-                    gd_prerpcessed_data.append({'S1': S, 'sig1': sig})
+            if self.graph_dissim_preprocessing:
+                gd_preprocessed_data.append(self.graph_dissim_preprocessing(G))
 
         return self
 
-    def _embeddings_dissim_embedding(self,
-                                     embedding_Ds,
-                                     dr_class=UMAP,
-                                     dr_kwargs={
-                                         'n_components': 2,
-                                         'n_neighbors': 15,
-                                         'min_dist': 0.1
-                                     }):
-        return dr_class(metric='precomputed',
-                        **dr_kwargs).fit_transform(np.log(1 + embedding_Ds))
+    def _embeddings_dissim_embedding(self, embedding_Ds, dr_inst=UMAP()):
+        dr_inst.metric = 'precomputed'
+        return dr_inst.fit_transform(embedding_Ds)
 
     def _clustering_by_emb_of_Ys(self, emb_of_Ys, n_representatives):
         cluster_ids = SpectralClustering(
@@ -375,44 +349,48 @@ class FEALM():
 
     def find_representative_Ps(self,
                                X,
-                               X2Y_dr_inst,
-                               Ps=None,
-                               Ys=None,
                                n_representatives=10,
-                               include_X=False,
-                               graph_dist=None,
-                               graph_func=None,
-                               X2Y_n_neighbor_scaling={
-                                   'snn': 1,
-                                   'netlsd': 1
-                               },
-                               Ys_dr_class=UMAP,
-                               Ys_dr_kwargs={
-                                   'n_components': 2,
-                                   'n_neighbors': 15,
-                                   'min_dist': 0.1
-                               },
-                               clustering_on_emb_of_Ys=False):
+                               Ps=None,
+                               XP_dr_inst=UMAP(),
+                               Ys=None,
+                               Y_graph_func=None,
+                               Y_graph_dissim=None,
+                               Y_dr_inst=UMAP(),
+                               clustering_on_emb_of_Ys=True):
         """Find representative projection matrices from Ps.
-        Note: here only important parameters are described.
         Parameters
         ----------
         X: array-like, shape(n_samples, n_attributes)
             Target data.
-        X2Y_dr_inst: instance of dimensionality reduction method
-            This instance is used when generting Y (embedding result) from X.
         n_representatives: int, optional, (default=10)
             Number of prpjection matrices to be recommended.
+        Ps: list of 2D arrays, optional, (default=None)
+            List of precomputed projection matrices. If None, self.Ps will be used
+        XP_dr_inst: instance of dimensionality reduction method, optional, (default=UMAP())
+            This instance is used when generting Y (embedding result) from X @ P.
+        Ys: list of 2D arrays, optional, (default=None)
+            List of precomputed embeddings of X @ P. If None, Ys are generated
+            by applying XP_dr_inst on each X @ P
+        Y_graph_func: function, optional, (default=None)
+            Graph generation function used to generate graphs from Ys. If None,
+            self.graph_func will be used.
+        Y_graph_dissim: function, optional, (default=None)
+            Graph dissimilarity function used to compare Ys. If None,
+            self.graph_dissim will be used.
+        Y_dr_inst: instance of dimensionality reduction method, optional, (default=UMAP())
+            This instance is used when generting embedding from Ys.
+        clustering_on_emb_of_Ys: boolean, optional, (default=True)
+
         Returns
         -------
         dictionary containing various information
             - 'repr_Ps': representative projection matrices
             - 'repr_Ys': embedding results corresponding to 'repr_Ps'
-            - 'closest_Y_indices': indices of closest Y to the cluster centers
+            - 'repr_indices': indices of repr_Ys/repr_Ps in Ys/Ps
+            - 'cluster_ids': cluster id assigned to each Y
             - 'Ys': all embeding results (corresponding to all Ps)
             - 'D_of_Ys': dissimilarities of Ys
             - 'emb_of_Ys': embedding result of Ys (embedding of embeddings)
-            - 'cluster_ids': cluster id assigned to each Y
         """
         if Ps is None:
             Ps = self.Ps
@@ -420,19 +398,18 @@ class FEALM():
         if Ys is None:
             Ys = []
             for P in Ps:
-                Ys.append(X2Y_dr_inst.fit_transform(X @ P))
+                Ys.append(XP_dr_inst.fit_transform(X @ P))
 
-        if graph_dist is None:
-            graph_dist = self.graph_dist
-        if graph_func is None:
-            graph_func = self.graph_func
+        if Y_graph_func is None:
+            Y_graph_func = self.graph_func
+        if Y_graph_dissim is None:
+            Y_graph_dissim = self.graph_dissim
 
-        Gs_of_Ys = [graph_func(Y) for Y in Ys]
-        D_of_Ys = self._dist_comp_parallel(Gs_of_Ys, dist_func=graph_dist)
+        Gs_of_Ys = [Y_graph_func(Y) for Y in Ys]
+        D_of_Ys = self._dist_comp_parallel(Gs_of_Ys, dist_func=Y_graph_dissim)
 
         emb_of_Ys = self._embeddings_dissim_embedding(D_of_Ys,
-                                                      dr_class=Ys_dr_class,
-                                                      dr_kwargs=Ys_dr_kwargs)
+                                                      dr_inst=Y_dr_inst)
 
         if clustering_on_emb_of_Ys:
             cluster_ids = self._clustering_by_emb_of_Ys(
@@ -458,50 +435,9 @@ class FEALM():
         return {
             'repr_Ps': repr_Ps,
             'repr_Ys': repr_Ys,
-            'closest_Y_indices': closest_Y_indices,
+            'repr_indices': closest_Y_indices,
+            'cluster_ids': cluster_ids,
             'Ys': Ys,
             'D_of_Ys': D_of_Ys,
             'emb_of_Ys': emb_of_Ys,
-            'cluster_ids': cluster_ids
         }
-
-
-# # potential way to cluster embedding results instead of SpectralClustering
-# # this clustering doesn't require specifying k
-# def cluster_by_modularity(
-#         data,
-#         n_neighbors=15,
-#         graph_type='simple',
-#         partition_type=louvain.RBConfigurationVertexPartition,
-#         resolution_parameter=2):
-#     '''
-#     graph_type: 'simple', 'fuzzy', 'precomputed'
-#     partition_type: louvain.RBConfigurationVertexPartition, etc.
-#     '''
-#
-#     if graph_type == 'precomputed':
-#         A = data
-#     elif graph_type == 'simple':
-#         A = gf.nearest_nbr_graph(data,
-#                                  n_neighbors=n_neighbors,
-#                                  to_networx_graph=False)
-#     elif graph_type == 'fuzzy':
-#         A = gf.fuzzy_nearest_nbr_graph(data,
-#                                        n_neighbors=n_neighbors,
-#                                        to_networx_graph=False)
-#     sources, targets = A.nonzero()
-#     edges = zip(sources.tolist(), targets.tolist())
-#     weights = A[sources, targets].A1
-#     g = ig.Graph(directed=False)
-#     g.add_vertices(A.shape[0])
-#     edges = list(zip(sources, targets))
-#     g.add_edges(edges)
-#     g.es['weight'] = weights
-#
-#     partition = louvain.find_partition(
-#         g,
-#         partition_type=partition_type,
-#         weights=np.array(g.es['weight']),
-#         resolution_parameter=resolution_parameter)
-#
-#     return np.array(partition.membership)
