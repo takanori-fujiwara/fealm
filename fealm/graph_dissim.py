@@ -1,3 +1,9 @@
+# graph dissimilarity/distane related functions are implemented while referring
+# to netrd's implementations (https://github.com/netsiphd/netrd)
+# But, each function here is significantly different from netrd's implementation
+
+# netrd's implentation is MIT License and Copyright (c) 2019 NetSI 2019 Collabathon Team
+
 import random
 import numpy as np
 import scipy as sp
@@ -8,9 +14,12 @@ from collections import deque
 from scipy.spatial.distance import directed_hausdorff
 
 from scipy.linalg import expm, eigvalsh, eigh, inv, solve
+from scipy.sparse.linalg import eigsh
 from scipy.stats import entropy
 from scipy.spatial.distance import jaccard
 from scipy.sparse import csr_matrix
+
+from netlsd.util import eigenvalues_auto
 
 
 def _to_undirected(G, weighted=False):
@@ -177,6 +186,7 @@ def _normalized_laplacian_matrix(A):
 def _lsd_trace_signature(G,
                          normalization=None,
                          timescales=np.logspace(-2, 2, 256),
+                         n_eigvals=10,
                          from_networkx_graph=False):
     if from_networkx_graph:
         nodelist = list(G)
@@ -186,8 +196,9 @@ def _lsd_trace_signature(G,
 
     L = _normalized_laplacian_matrix(_to_undirected(G_)).toarray()
 
-    # Note: this is O(n^3) worst-case.
-    w = eigvalsh(L)
+    # Note: this is O(n_nodes * n_nodes * n_eigvals)
+    # also netlsd library used n_eivals instead of n_eigvals (probably typo)
+    w = eigenvalues_auto(L, n_eivals=n_eigvals)
 
     signature = np.sum(np.exp(-timescales[:, np.newaxis] @ w[:, np.newaxis].T),
                        axis=1)
@@ -208,21 +219,40 @@ def netlsd(G1,
            sig2=None,
            normalization=None,
            timescales=np.logspace(-2, 2, 256),
+           n_eigvals='auto',
            from_networkx_graphs=False):
     '''
     This version is currently about 20x faster than nd.NetLSD().dist
     when using from_networkx_graphs=False. When from_networkx_graphs=True, still
     8x faster than nd.NetLSD().dist.
+
+    # this documentation is from https://github.com/xgfs/NetLSD and modifeied for n_eigvals='auto' case
+    timescales : numpy.ndarray
+        Vector of discrete timesteps for the kernel computation
+    n_eigvals : string or int or tuple
+        Number of eigenvalues to compute / use for approximation.
+        If string, we expect either 'full' or 'auto', otherwise error will be raised.
+            'full' computes all eigenvalues.
+            'auto' uses 50 when # of average nodes in G1 and G2 is larger than or euqal to 50.
+            (xgfs's NetLSD sets 150 when # of nodes is larger than 1024)
+        If int, compute n_eigvals eigenvalues from each side and approximate using linear growth approximation.
+        If tuple, we expect two ints, first for lower part of approximation, and second for the upper part.
     '''
+    if n_eigvals == 'auto':
+        if (G1.shape[0] + G2.shape[0]) / 2 >= 50:
+            n_eigvals = 50
+
     if sig1 is None:
         sig1 = _lsd_trace_signature(G1,
                                     normalization=normalization,
                                     timescales=timescales,
+                                    n_eigvals=n_eigvals,
                                     from_networkx_graph=from_networkx_graphs)
     if sig2 is None:
         sig2 = _lsd_trace_signature(G2,
                                     normalization=normalization,
                                     timescales=timescales,
+                                    n_eigvals=n_eigvals,
                                     from_networkx_graph=from_networkx_graphs)
 
     return np.linalg.norm(sig1 - sig2)
@@ -677,7 +707,8 @@ def nsd(G1,
         snn_nhops=1,
         snn_symmetrize=False,
         lsd_normalization=None,
-        timescales=np.logspace(-2, 2, 256),
+        lsd_timescales=np.logspace(-2, 2, 256),
+        lsd_n_eigvals='auto',
         take_log_for_lsd=True,
         from_networkx_graphs=False):
     '''
@@ -697,7 +728,8 @@ def nsd(G1,
                                sig1=sig1,
                                sig2=sig2,
                                normalization=lsd_normalization,
-                               timescales=timescales,
+                               timescales=lsd_timescales,
+                               n_eigvals=lsd_n_eigvals,
                                from_networkx_graphs=from_networkx_graphs)
 
     # taking log because netlsd is following exponential difference
