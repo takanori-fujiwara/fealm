@@ -194,7 +194,7 @@ def _lsd_trace_signature(G,
     else:
         G_ = G
 
-    L = _normalized_laplacian_matrix(_to_undirected(G_)).toarray()
+    L = _normalized_laplacian_matrix(_to_undirected(G_))
 
     # Note: this is O(n_nodes * n_nodes * n_eigvals)
     # also netlsd library used n_eivals instead of n_eigvals (probably typo)
@@ -233,14 +233,16 @@ def netlsd(G1,
         Number of eigenvalues to compute / use for approximation.
         If string, we expect either 'full' or 'auto', otherwise error will be raised.
             'full' computes all eigenvalues.
-            'auto' uses 50 when # of average nodes in G1 and G2 is larger than or euqal to 50.
-            (xgfs's NetLSD sets 150 when # of nodes is larger than 1024)
+            'auto' uses (25, 25) when # of average nodes in G1 and G2 is larger than 50.
+            (xgfs's NetLSD sets 150, i.e., (150, 150), when # of nodes is larger than 1024)
         If int, compute n_eigvals eigenvalues from each side and approximate using linear growth approximation.
         If tuple, we expect two ints, first for lower part of approximation, and second for the upper part.
     '''
     if n_eigvals == 'auto':
-        if (G1.shape[0] + G2.shape[0]) / 2 >= 50:
-            n_eigvals = 50
+        if (G1.shape[0] + G2.shape[0]) / 2 > 50:
+            n_eigvals = (25, 25)
+        else:
+            n_eigvals = 'full'
 
     if sig1 is None:
         sig1 = _lsd_trace_signature(G1,
