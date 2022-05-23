@@ -3,7 +3,7 @@ import os
 from distutils.core import setup
 
 setup(name='fealm',
-      version=0.3,
+      version=0.4,
       packages=[''],
       package_dir={'': '.'},
       install_requires=[
