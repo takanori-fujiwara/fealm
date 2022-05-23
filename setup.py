@@ -7,11 +7,12 @@ setup(name='fealm',
       packages=[''],
       package_dir={'': '.'},
       install_requires=[
-          'numpy', 'scipy', 'pandas', 'autograd', 'sklearn',
+          'numpy', 'scipy', 'pandas', 'autograd', 'sklearn', 'pymanopt',
           'scikit-learn-extra', 'umap-learn', 'hdbscan', 'pathos', 'networkx',
           'netrd', 'netlsd', 'igraph', 'louvain', 'matplotlib', 'seaborn'
       ],
       py_modules=[
-          'fealm', 'fealm.optimization', 'fealm.solver', 'fealm.opt_set_proj',
-          'fealm.graph_func', 'fealm.graph_dissim', 'fealm.plot', 'fealm.fealm'
+          'fealm', 'fealm.optimization', 'fealm.optimizer',
+          'fealm.opt_set_proj', 'fealm.graph_func', 'fealm.graph_dissim',
+          'fealm.plot', 'fealm.fealm'
       ])

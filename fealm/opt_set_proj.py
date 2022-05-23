@@ -6,14 +6,14 @@ import autograd.numpy as np
 
 import pymanopt
 from pymanopt.manifolds import Grassmann
-from pymanopt.solvers import TrustRegions
-from pymanopt.solvers.steepest_descent import SteepestDescent
+from pymanopt.optimizers import TrustRegions
+from pymanopt.optimizers.steepest_descent import SteepestDescent
 
 
 class OptSetProj():
 
-    def __init__(self, solver=SteepestDescent()):
-        self.solver = solver
+    def __init__(self, optimizer=SteepestDescent()):
+        self.optimizer = optimizer
         self.B = None
 
     def _gen_cost_func(self, manifold, X, As):
@@ -66,7 +66,7 @@ class OptSetProj():
 
         problem = pymanopt.Problem(manifold=manifold, cost=cost_func)
 
-        B = self.solver.solve(problem)
+        B = self.optimizer.run(problem).point
         self.B = B
 
         return self

@@ -13,7 +13,7 @@ from umap import UMAP
 
 import fealm.graph_dissim as gd
 import fealm.graph_func as gf
-from fealm.solver import ParticleSwarm
+from fealm.optimizer import ParticleSwarm
 from fealm.optimization import Optimization
 
 import igraph as ig
@@ -250,17 +250,18 @@ class FEALM():
         for i in range(self.n_repeats):
             print(f'{i+1}th repeat')
             max_cost_evaluations = self.pso_population_size * self.pso_n_iterations
-            solver = ParticleSwarm(max_time=self.pso_max_time,
-                                   max_cost_evaluations=max_cost_evaluations,
-                                   population_size=self.pso_population_size,
-                                   n_jobs=self.pso_n_jobs)
+            optimizer = ParticleSwarm(
+                max_time=self.pso_max_time,
+                max_cost_evaluations=max_cost_evaluations,
+                population_size=self.pso_population_size,
+                n_jobs=self.pso_n_jobs)
 
             # use no_constraint when form is 'p_wMv'
             self.opt = Optimization(
                 graph_func=self.graph_func,
                 graph_dissim=self.graph_dissim,
                 graph_dissim_reduce_func=self.graph_dissim_reduce_func,
-                solver=solver,
+                optimizer=optimizer,
                 form=self.projection_form
                 if not self.projection_form == 'p_wMv' else 'no_constraint')
 

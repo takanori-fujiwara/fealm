@@ -7,7 +7,7 @@ import time
 import numpy as np
 import numpy.random as rnd
 
-from pymanopt.solvers.solver import Solver
+from pymanopt.optimizers.optimizer import Optimizer
 
 # faster but memory leak can happen
 from pathos.multiprocessing import ProcessPool as Pool
@@ -15,7 +15,7 @@ from pathos.multiprocessing import ProcessPool as Pool
 # from pathos.multiprocessing import _ProcessingPool as _Pool
 
 
-class ParticleSwarm(Solver):
+class ParticleSwarm(Optimizer):
     """Particle swarm optimization (PSO) method.
     Perform optimization using the derivative-free particle swarm optimization
     algorithm.
@@ -47,7 +47,7 @@ class ParticleSwarm(Solver):
         self._social = social
         self._n_jobs = n_jobs
 
-    def solve(self, problem, x=None, multiple_answers=False):
+    def run(self, problem, x=None, multiple_answers=False):
         """Run PSO algorithm.
         Args:
             problem: Pymanopt problem class instance exposing the cost function
@@ -77,7 +77,7 @@ class ParticleSwarm(Solver):
         # If no initial population x is given by the user, generate one at
         # random.
         if x is None:
-            x = [man.rand() for i in range(int(self._population_size))]
+            x = [man.random_point() for i in range(int(self._population_size))]
         elif not hasattr(x, "__iter__"):
             raise ValueError("The initial population x must be iterable")
         else:
@@ -95,13 +95,13 @@ class ParticleSwarm(Solver):
         if self._n_jobs > 0:
             with Pool(nodes=self._n_jobs) as p:
                 # Initialize velocities for each particle.
-                v = [man.randvec(xi) for xi in x]
+                v = [man.random_tangent_vector(xi) for xi in x]
                 # Compute cost for each particle xi.
                 costs = p.map(objective, x)
         else:
             with Pool() as p:
                 # Initialize velocities for each particle.
-                v = [man.randvec(xi) for xi in x]
+                v = [man.random_tangent_vector(xi) for xi in x]
                 # Compute cost for each particle xi.
                 costs = p.map(objective, x)
 
@@ -127,14 +127,14 @@ class ParticleSwarm(Solver):
                 f'iteration: {iteration}, cost: {cost_evaluations}, best: {fbest}'
             )
 
-            stop_reason = self._check_stopping_criterion(
+            stopping_criterion = self._check_stopping_criterion(
                 start_time=start_time,
                 iteration=iteration,
                 cost_evaluations=cost_evaluations)
 
-            if stop_reason:
+            if stopping_criterion:
                 if verbosity >= 1:
-                    print(stop_reason)
+                    print(stopping_criterion)
                     print("")
                 break
 
@@ -153,7 +153,7 @@ class ParticleSwarm(Solver):
 
                 # Compute the new velocity of particle i, composed of three
                 # contributions.
-                inertia = w * man.transp(xiprev, xi, vi)
+                inertia = w * man.transport(xiprev, xi, vi)
                 nostalgia = rnd.rand() * self._nostalgia * man.log(xi, yi)
                 social = rnd.rand() * self._social * man.log(xi, xbest)
 
@@ -181,17 +181,26 @@ class ParticleSwarm(Solver):
                         xbest = x[i]
 
             # Compute new position of particle i.
-            x = [man.retr(xi, vi) for xi, vi in zip(x, v)]
+            x = [man.retraction(xi, vi) for xi, vi in zip(x, v)]
 
             cost_evaluations += self._population_size
 
         if multiple_answers:
-            return xbest, x
+            point = (xbest, x)
         else:
-            return xbest
+            point = xbest
+
+        return self._return_result(
+            start_time=start_time,
+            point=point,
+            cost=fbest,
+            iterations=iteration,
+            stopping_criterion=stopping_criterion,
+            cost_evaluations=cost_evaluations,
+        )
 
 
-class RandomAnswer(Solver):
+class RandomAnswer(Optimizer):
 
     def __init__(
         self,
@@ -202,9 +211,14 @@ class RandomAnswer(Solver):
         super().__init__(*args, **kwargs)
         self._population_size = populationsize
 
-    def solve(self, problem, x=None):
+    def run(self, problem, x=None):
         """Return random params on a specified manifold
         """
+        start_time = time.time()
         man = problem.manifold
+        point = man.random_point()
 
-        return man.rand()
+        return self._return_result(
+            start_time=start_time,
+            point=point,
+        )

@@ -10,8 +10,8 @@ from pymanopt.manifolds.stiefel import Stiefel
 from pymanopt.manifolds import Grassmann
 from pymanopt.manifolds.euclidean import Euclidean
 
-from pymanopt.solvers.particle_swarm import ParticleSwarm
-from pymanopt.solvers.steepest_descent import SteepestDescent
+from pymanopt.optimizers.particle_swarm import ParticleSwarm
+from pymanopt.optimizers.steepest_descent import SteepestDescent
 
 
 class ModifiedEuclidean(Euclidean):
@@ -26,7 +26,7 @@ class Optimization():
                  graph_func,
                  graph_dissim,
                  graph_dissim_reduce_func=np.min,
-                 solver=ParticleSwarm(),
+                 optimizer=ParticleSwarm(),
                  form='wM',
                  n_trials_for_mat_decomp=5):
         '''
@@ -35,7 +35,7 @@ class Optimization():
         self.graph_func = graph_func
         self.graph_dissim = graph_dissim
         self.graph_dissim_reduce_func = graph_dissim_reduce_func
-        self.solver = solver
+        self.optimizer = optimizer
         self.form = form
         self.n_trials_for_mat_decomp = n_trials_for_mat_decomp
 
@@ -279,15 +279,15 @@ class Optimization():
 
         problem = pymanopt.Problem(manifold=manifold, cost=cost_func)
 
-        solver = SteepestDescent()
-        solver._verbosity = 0
+        optimizer = SteepestDescent()
+        optimizer._verbosity = 0
 
         w = None
         M = None
         v = None
         cost = np.inf
         for i in range(self.n_trials_for_mat_decomp):
-            w_, M_, v_ = solver.solve(problem)
+            w_, M_, v_ = optimizer.run(problem).point
             cost_ = problem.cost([w_, M_, v_])
             if cost_ < cost:
                 w = w_
@@ -323,10 +323,10 @@ class Optimization():
 
         best, answers = (None, None)
         if multiple_answers:
-            best, answers = self.solver.solve(self.problem,
-                                              multiple_answers=True)
+            best, answers = self.optimizer.run(self.problem,
+                                               multiple_answers=True).point
         else:
-            best = self.solver.solve(self.problem)
+            best = self.optimizer.run(self.problem).point
 
         self.w, self.M, self.v = self._to_wMv(form=self.form,
                                               answer=best,

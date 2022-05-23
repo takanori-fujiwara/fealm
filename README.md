@@ -8,26 +8,17 @@ Content
 * case_studies: Scripts related to Case Studies.
 
 * Note: The UI is available in this repository: https://github.com/takanori-fujiwara/fealm-ui
- 
+
 ******
 
 Setup
 -----
 
 ### Requirements
-* Python3 (latest), pymanopt (https://github.com/pymanopt/pymanopt)
+* Python3 (latest)
 * Note: Tested on macOS Big Sur and Winows 10.
 
 ### Setup
-* Install pymanopt from the github repository (DO NOT use pip3 install pymanopt)
-
-  * Download/Clone the repository from https://github.com/pymanopt/pymanopt
-
-  * Move to the downloaded repository, then:
-
-    `rm pyproject.toml`
-
-    `pip3 install .`
 
 * Install FEALM
 
