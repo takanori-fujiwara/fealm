@@ -15,9 +15,9 @@ from pymanopt.optimizers.steepest_descent import SteepestDescent
 
 
 class ModifiedEuclidean(Euclidean):
-    # Note: the original pymanopt implenetation has a bug for rand
-    def rand(self):
-        return np.random.randn(*self._shape[0])
+    # Note: the original pymanopt implenetation has a bug for random_point
+    def random_point(self):
+        return np.random.normal(size=self._shape[0])
 
 
 class Optimization():
