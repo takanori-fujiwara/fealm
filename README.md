@@ -7,7 +7,7 @@ Content
 * computational_evaluations: Scripts used for Computational Evaluations.
 * case_studies: Scripts related to Case Studies.
 
-* Note: The UI is available in this repository: https://github.com/takanori-fujiwara/fealm-ui
+<!-- * Note: The UI is available in this repository: https://github.com/takanori-fujiwara/fealm-ui -->
 
 ******
 
@@ -28,7 +28,7 @@ Setup
 
     `pip3 install .`
 
-* You can test with sample.py
+* You can test with sample.py. To run, sample.py you need to install additonal packages.
 
     `pip3 install matplotlib sklearn`
 
