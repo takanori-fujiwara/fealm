@@ -9,7 +9,6 @@ import numpy as np
 import scipy as sp
 import networkx as nx
 import netrd.distance as nd
-import hdbscan
 from collections import deque
 from scipy.spatial.distance import directed_hausdorff
 
@@ -479,6 +478,9 @@ def _extract_cluster(G, S, n_walks):
 
 
 def _dbscan(D, indices):
+    # note: the latest hdbscan causes error when loaded. So, snc doesn't work.
+    import hdbscan
+
     related_D = (D[indices].T)[indices]
     np.fill_diagonal(related_D, 0)
 

@@ -5,7 +5,6 @@ from sklearn import datasets
 from sklearn.preprocessing import scale
 from umap import UMAP
 
-from fealm.fealm import FEALM
 import fealm.plot as fplot
 
 if __name__ == '__main__':
@@ -27,6 +26,9 @@ if __name__ == '__main__':
     fplot.plot_embeddings([Y], y)
     plt.show()
 
+    # Note: load after running UMAP, otherwise segmentation occurs
+    # This is likely from the conflict between current versions of UMAP and pathos
+    from fealm.fealm import FEALM
     fealm = FEALM(n_neighbors=n_neighbors, projection_form='w', n_repeats=5)
 
     fealm = fealm.fit(X)
