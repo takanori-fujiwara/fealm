@@ -16,7 +16,7 @@ Setup
 
 ### Requirements
 * Python3 (latest)
-* Note: Tested on macOS Big Sur and Winows 10.
+* Note: Tested on macOS Big Sur and Windows 10.
 
 ### Setup
 
@@ -26,14 +26,16 @@ Setup
 
   * Move to the downloaded repository, then:
 
-    `pip3 install .`
+    `python3 -m pip install .`
 
 * You can test with sample.py. To run, sample.py you need to install additonal packages.
 
-    `pip3 install matplotlib sklearn`
+    `python3 -m pip install matplotlib sklearn`
 
 ### Usage
 * Examples can be found in "sample.py" and "case_studies"
 * API documentation can be found in "fealm/fealm.py" (WIP)
+
+* Currently, due to the conflict between UMAP and Pathos libraries, a specific loading order of modules is required (see sample.py). Also, SnC might not work due to the latest hdbscan library's problem for Python 3.10 environment.
 
 ******

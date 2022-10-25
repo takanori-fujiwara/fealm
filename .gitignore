@@ -3,6 +3,9 @@ node_modules
 dist
 dist-ssr
 *.local
+archive/
+mnist_X.npy
+mnist_y.npy
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

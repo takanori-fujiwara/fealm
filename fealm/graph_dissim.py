@@ -9,17 +9,113 @@ import numpy as np
 import scipy as sp
 import networkx as nx
 import netrd.distance as nd
-import hdbscan
 from collections import deque
 from scipy.spatial.distance import directed_hausdorff
 
-from scipy.linalg import expm, eigvalsh, eigh, inv, solve
-from scipy.sparse.linalg import eigsh
+from scipy.linalg import expm, eigvalsh, eigvals, eigh, inv, solve
+from scipy.sparse.linalg import eigsh, ArpackNoConvergence
 from scipy.stats import entropy
 from scipy.spatial.distance import jaccard
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, issparse
 
-from netlsd.util import eigenvalues_auto
+import scipy.linalg as spl
+import scipy.sparse as sps
+import scipy.sparse.linalg as spsl
+
+
+## updown_linear_approx and eigenvalues_auto are modifed versions from netlsd's (https://github.com/xgfs/NetLSD, released under MIT licence, Copyright (c) 2018 Anton Tsitsulin)
+## Modified points are:
+## - adding args of [eigsh_tol, eigsh_v0] to control the tolerance
+##   to avoid the slow convergence based on the random initial solution and
+##   to make the result reporoduciable by indicating the initial solution
+## - adding error handling for the no convergence case (see http://jiffyclub.github.io/scipy/release.0.9.0.html).
+## - bug-fixing in the selection of sparse and dense arrays based on n_eivals
+##
+def updown_linear_approx(eigvals_lower, eigvals_upper, nv):
+    nal = len(eigvals_lower)
+    nau = len(eigvals_upper)
+    if nv < nal + nau:
+        raise ValueError(
+            'Number of supplied eigenvalues ({0} lower and {1} upper) is higher than number of nodes ({2})!'
+            .format(nal, nau, nv))
+    ret = np.zeros(nv)
+    ret[:nal] = eigvals_lower
+    ret[-nau:] = eigvals_upper
+    ret[nal - 1:-nau + 1] = np.linspace(eigvals_lower[-1], eigvals_upper[0],
+                                        nv - nal - nau + 2)
+
+    return ret
+
+
+def eigenvalues_auto(X, n_eivals='auto', eigsh_tol=0, eigsh_v0=None):
+    do_full = True
+    n_lower = 150
+    n_upper = 150
+    nv = X.shape[0]
+
+    if n_eivals == 'auto':
+        if X.shape[0] > 1024:
+            do_full = False
+    if n_eivals == 'full':
+        do_full = True
+    if isinstance(n_eivals, int):
+        n_lower = n_upper = n_eivals
+        if n_lower + n_upper < nv:
+            do_full = False
+    if isinstance(n_eivals, tuple):
+        n_lower, n_upper = n_eivals
+        if n_lower + n_upper < nv:
+            do_full = False
+
+    if do_full and issparse(X):
+        X = X.toarray()
+
+    if issparse(X):
+        if n_lower == n_upper:
+            try:
+                tr_eivals = eigsh(X,
+                                  2 * n_lower,
+                                  which='BE',
+                                  return_eigenvectors=False,
+                                  tol=eigsh_tol,
+                                  v0=eigsh_v0)
+            except ArpackNoConvergence as err:
+                # this will get partially converged eigenvalues
+                tr_eivals = err.eigenvalues
+
+            return updown_linear_approx(tr_eivals[:n_upper],
+                                        tr_eivals[n_upper:], nv)
+        else:
+            try:
+                lo_eivals = eigsh(X,
+                                  n_lower,
+                                  which='SM',
+                                  return_eigenvectors=False,
+                                  tol=eigsh_tol,
+                                  v0=eigsh_v0)[::-1]
+            except ArpackNoConvergence as err:
+                # this will get partially converged eigenvalues
+                lo_eivals = err.eigenvalues
+
+            try:
+                up_eivals = eigsh(X,
+                                  n_upper,
+                                  which='LM',
+                                  return_eigenvectors=False,
+                                  tol=eigsh_tol,
+                                  v0=eigsh_v0)
+            except ArpackNoConvergence as err:
+                # this will get partially converged eigenvalues
+                up_eivals = err.eigenvalues
+
+            return updown_linear_approx(lo_eivals, up_eivals, nv)
+    else:
+        if do_full:
+            return eigvalsh(X)
+        else:
+            lo_eivals = eigvalsh(X, eigvals=(0, n_lower - 1))
+            up_eivals = eigvalsh(X, eigvals=(nv - n_upper - 1, nv - 1))
+            return updown_linear_approx(lo_eivals, up_eivals, nv)
 
 
 def _to_undirected(G, weighted=False):
@@ -187,7 +283,9 @@ def _lsd_trace_signature(G,
                          normalization=None,
                          timescales=np.logspace(-2, 2, 256),
                          n_eigvals=10,
-                         from_networkx_graph=False):
+                         from_networkx_graph=False,
+                         eigsh_tol=0,
+                         eigsh_v0=None):
     if from_networkx_graph:
         nodelist = list(G)
         G_ = nx.to_scipy_sparse_matrix(G, nodelist)
@@ -198,7 +296,11 @@ def _lsd_trace_signature(G,
 
     # Note: this is O(n_nodes * n_nodes * n_eigvals)
     # also netlsd library used n_eivals instead of n_eigvals (probably typo)
-    w = eigenvalues_auto(L, n_eivals=n_eigvals)
+    # TDOO: maybe we should set tol for this (speed depends on random vec v0)
+    w = eigenvalues_auto(L,
+                         n_eivals=n_eigvals,
+                         eigsh_tol=eigsh_tol,
+                         eigsh_v0=eigsh_v0)
 
     signature = np.sum(np.exp(-timescales[:, np.newaxis] @ w[:, np.newaxis].T),
                        axis=1)
@@ -220,7 +322,9 @@ def netlsd(G1,
            normalization=None,
            timescales=np.logspace(-2, 2, 256),
            n_eigvals='auto',
-           from_networkx_graphs=False):
+           from_networkx_graphs=False,
+           eigsh_tol=0,
+           eigsh_v0=None):
     '''
     This version is currently about 20x faster than nd.NetLSD().dist
     when using from_networkx_graphs=False. When from_networkx_graphs=True, still
@@ -237,6 +341,7 @@ def netlsd(G1,
             (xgfs's NetLSD sets 150, i.e., (150, 150), when # of nodes is larger than 1024)
         If int, compute n_eigvals eigenvalues from each side and approximate using linear growth approximation.
         If tuple, we expect two ints, first for lower part of approximation, and second for the upper part.
+    eigsh_tol, eigsh_v0: eigsh's option used for eigenvalue-based approximation (check SciPy's eigsh).
     '''
     if n_eigvals == 'auto':
         if (G1.shape[0] + G2.shape[0]) / 2 > 50:
@@ -249,13 +354,17 @@ def netlsd(G1,
                                     normalization=normalization,
                                     timescales=timescales,
                                     n_eigvals=n_eigvals,
-                                    from_networkx_graph=from_networkx_graphs)
+                                    from_networkx_graph=from_networkx_graphs,
+                                    eigsh_tol=eigsh_tol,
+                                    eigsh_v0=eigsh_v0)
     if sig2 is None:
         sig2 = _lsd_trace_signature(G2,
                                     normalization=normalization,
                                     timescales=timescales,
                                     n_eigvals=n_eigvals,
-                                    from_networkx_graph=from_networkx_graphs)
+                                    from_networkx_graph=from_networkx_graphs,
+                                    eigsh_tol=eigsh_tol,
+                                    eigsh_v0=eigsh_v0)
 
     return np.linalg.norm(sig1 - sig2)
 
@@ -479,6 +588,7 @@ def _extract_cluster(G, S, n_walks):
 
 
 def _dbscan(D, indices):
+    import hdbscan  # TODO: this version of the package is problematic now
     related_D = (D[indices].T)[indices]
     np.fill_diagonal(related_D, 0)
 
@@ -668,7 +778,7 @@ def snn_dissim(G1,
                S2=None,
                method='default',
                fixed_degree=None,
-               n_hops=3,
+               n_hops=1,
                symmetrize=True,
                from_networkx_graphs=False):
     if S1 is None:

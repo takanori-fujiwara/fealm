@@ -4,20 +4,18 @@ from scipy.spatial.distance import squareform
 from scipy.stats import rankdata
 from sklearn.cluster import SpectralClustering
 from sklearn_extra.cluster import KMedoids
+
+# Note: the current version of Pathos does not work for the latest env.
 # faster but memory leak can happen
-from pathos.multiprocessing import ProcessPool as Pool
-# slower but memory leak safe
-# from pathos.multiprocessing import _ProcessingPool as Pool
+# from pathos.multiprocessing import ProcessPool as Pool
 
 from umap import UMAP
 
 import fealm.graph_dissim as gd
 import fealm.graph_func as gf
 from fealm.optimizer import ParticleSwarm
+from fealm.optimizer import AdaptiveNelderMead
 from fealm.optimization import Optimization
-
-import igraph as ig
-import louvain
 
 
 class FEALM():
@@ -41,7 +39,8 @@ class FEALM():
     projection_form: string, optional (default='w')
         The projection matrix form/constraint used for optimization. Sselect
         from 'w', 'p_wMv', 'no_constraint' (or other supported options,
-        'M', 'wM', 'Mv', 'wMv').
+        'M', 'wM', 'Mv', 'wMv'. Note: the pseudo Karcher mean of
+        Grasmann is not implemented yet https://www.cis.upenn.edu/~cis5150/Diffgeom-Grassmann.Absil.pdf).
         - 'w': only feature scaling (w in the paper)
         - 'p_wMv': feature scaling and transformation (wMv in the paper).
           Note: When 'wMv', optmization is over the union of Sphere, Grasmann,
@@ -68,7 +67,7 @@ class FEALM():
     pso_n_jobs: int, optional, (default=-1)
         Number of processes used for particle swarm optimization. When -1, all
         available processes are used.
-    pso_max_time: float, optional, (default=1000)
+    pso_max_time: float, optional, (default=3600)
         Maximum time (in second) spent for particle swarm optimization.
     graph_func: function, optional, (default=None)
         Function used for graph generation. When None, k-nearest neigbor
@@ -101,16 +100,20 @@ class FEALM():
                  n_repeats=5,
                  projection_form='w',
                  n_components=None,
-                 pso_n_nonbest_solutions=10,
+                 pso_n_nonbest_solutions=1,
                  pso_nonbest_solution_selection='projection_dissim',
-                 pso_population_size=100,
-                 pso_n_iterations=10,
+                 pso_population_size=None,
+                 pso_n_iterations=1000,
                  pso_n_jobs=-1,
                  pso_max_time=3600,
+                 single_evaluation_max_time=60,
                  graph_func=None,
                  graph_dissim=None,
                  graph_dissim_reduce_func=np.min,
-                 graph_dissim_preprocessing=None):
+                 graph_dissim_preprocessing=None,
+                 lasso_coeff=0,
+                 ridge_coeff=0,
+                 entropy_coeff=0):
         self.n_neighbors = n_neighbors
         self.projection_form = projection_form
         self.n_components = n_components
@@ -121,16 +124,20 @@ class FEALM():
         self.pso_n_iterations = pso_n_iterations
         self.pso_n_jobs = pso_n_jobs
         self.pso_max_time = pso_max_time
+        self.single_evaluation_max_time = single_evaluation_max_time
         self.graph_func = graph_func
         self.graph_dissim = graph_dissim
         self.graph_dissim_reduce_func = graph_dissim_reduce_func
         self.graph_dissim_preprocessing = graph_dissim_preprocessing
+        self.lasso_coeff = lasso_coeff
+        self.ridge_coeff = ridge_coeff
+        self.entropy_coeff = entropy_coeff
 
         self.opt = None
         self.Ps = None
         self.best_P_indices = None
 
-        if self.pso_n_nonbest_solutions > self.pso_population_size:
+        if self.pso_population_size and self.pso_n_nonbest_solutions > self.pso_population_size:
             print(
                 'pso_n_nonbest_solutions must not be larger than pso_population_size. pso_n_nonbest_solutions will be set to be pso_population_size'
             )
@@ -178,8 +185,10 @@ class FEALM():
         comp_dist = self._gen_comp_dist(Xs, dist_func)
 
         # multiprocessing
-        with Pool() as p:
-            dists = p.map(comp_dist, idx_pairs)
+        # TODO: the current Pathos does not work well with UMAP
+        # with Pool() as p:
+        #     dists = p.map(comp_dist, idx_pairs)
+        dists = [comp_dist(pair) for pair in idx_pairs]
 
         D = squareform(dists)
 
@@ -249,12 +258,27 @@ class FEALM():
 
         for i in range(self.n_repeats):
             print(f'{i+1}th repeat')
-            max_cost_evaluations = self.pso_population_size * self.pso_n_iterations
-            optimizer = ParticleSwarm(
-                max_time=self.pso_max_time,
+            # max_cost_evaluations = self.pso_population_size * self.pso_n_iterations
+            max_time = self.pso_max_time
+            n_jobs = self.pso_n_jobs
+            population_size = self.pso_population_size
+            single_evaluation_max_time = self.single_evaluation_max_time
+            # optimizer = ParticleSwarm(
+            #     max_time=self.pso_max_time,
+            #     max_cost_evaluations=max_cost_evaluations,
+            #     population_size=population_size,
+            #     n_jobs=self.pso_n_jobs)
+            # multiple_answers = True
+
+            # Note: When involving Grasmann, we cannot use NelderMead
+            max_cost_evaluations = self.pso_n_iterations
+            optimizer = AdaptiveNelderMead(
                 max_cost_evaluations=max_cost_evaluations,
-                population_size=self.pso_population_size,
-                n_jobs=self.pso_n_jobs)
+                max_time=max_time,
+                n_jobs=n_jobs,
+                randopt_population_size=population_size,
+                single_evaluation_max_time=single_evaluation_max_time)
+            multiple_answers = False
 
             # use no_constraint when form is 'p_wMv'
             self.opt = Optimization(
@@ -263,19 +287,26 @@ class FEALM():
                 graph_dissim_reduce_func=self.graph_dissim_reduce_func,
                 optimizer=optimizer,
                 form=self.projection_form
-                if not self.projection_form == 'p_wMv' else 'no_constraint')
+                if not self.projection_form in ['p_wMv', 'p_w'] else
+                'no_constraint')
 
             self.opt = self.opt.fit(X,
                                     Gs=Gs_,
                                     n_components=self.n_components,
-                                    multiple_answers=True,
-                                    gd_preprocessed_data=gd_preprocessed_data)
+                                    multiple_answers=multiple_answers,
+                                    gd_preprocessed_data=gd_preprocessed_data,
+                                    lasso_coeff=self.lasso_coeff,
+                                    ridge_coeff=self.ridge_coeff,
+                                    entropy_coeff=self.entropy_coeff)
 
-            tmp_Ps = self.opt.Ps
+            new_Ps = []
+            if multiple_answers:
+                tmp_Ps = self.opt.Ps
 
-            if self.pso_n_nonbest_solutions == 0:
-                new_Ps = []
-            else:
+                # if self.pso_n_nonbest_solutions == 0:
+                #     new_Ps = []
+                # else:
+
                 if self.pso_nonbest_solution_selection == 'projection_dissim':
                     tmp_Ps = [self._consistent_signs(P) for P in tmp_Ps]
                     if not self.projection_form == 'w':
@@ -300,11 +331,16 @@ class FEALM():
                 best_P = self._consistent_order(best_P)
             new_Ps.append(best_P)
 
-            # restrict projection matrix being on wMv's manifold
             if self.projection_form == 'p_wMv':
+                # restrict projection matrix being on wMv's manifold
                 for i, P in enumerate(new_Ps):
                     w, M, v = self.opt.mat_decomp(P)
                     new_Ps[i] = np.diag(w) @ M @ np.diag(v)
+            elif self.projection_form == 'p_w':
+                # restrict projection matrix being on w's manifold
+                for i, P in enumerate(new_Ps):
+                    new_Ps[i] = np.sqrt(
+                        X.shape[1]) * new_Ps[i] / np.linalg.norm(new_Ps[i])
 
             self.Ps += new_Ps
             self.best_P_indices.append(len(self.Ps) - 1)

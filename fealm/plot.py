@@ -6,7 +6,7 @@ import seaborn as sns
 from matplotlib.collections import LineCollection
 
 
-def plot_embeddings(Ys, y, palette='tab10', start_title_id=0):
+def plot_embeddings(Ys, y, palette='tab10', start_title_id=0, linewidth=0):
     figsize_x = len(Ys) * 3.2
     fig, axs = plt.subplots(ncols=len(Ys), figsize=(figsize_x, 3.5))
     for i, Y in enumerate(Ys):
@@ -18,6 +18,7 @@ def plot_embeddings(Ys, y, palette='tab10', start_title_id=0):
                         hue='label',
                         ax=ax,
                         palette=palette,
+                        linewidth=linewidth,
                         zorder=2)
 
         ax.set(xticks=[])

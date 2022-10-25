@@ -5,7 +5,6 @@ from sklearn import datasets
 from sklearn.preprocessing import scale
 from umap import UMAP
 
-from fealm.fealm import FEALM
 import fealm.plot as fplot
 
 if __name__ == '__main__':
@@ -27,7 +26,10 @@ if __name__ == '__main__':
     fplot.plot_embeddings([Y], y)
     plt.show()
 
-    fealm = FEALM(n_neighbors=n_neighbors, projection_form='w', n_repeats=5)
+    # NOTE: It seems like UMAP and Pathos has some conflict in their current versions
+    # To run FEALM with UMAP, need to load and run UMAP before loding FEALM.
+    from fealm.fealm import FEALM
+    fealm = FEALM(n_neighbors=n_neighbors, projection_form='w', n_repeats=10)
 
     fealm = fealm.fit(X)
     Ps = fealm.Ps
@@ -37,7 +39,7 @@ if __name__ == '__main__':
     cluster_result = fealm.find_representative_Ps(X,
                                                   XP_dr_inst=umap,
                                                   Ps=Ps + [P0],
-                                                  n_representatives=10,
+                                                  n_representatives=4,
                                                   clustering_on_emb_of_Ys=True)
 
     fplot.plot_embeddings(cluster_result['repr_Ys'], np.array(y))

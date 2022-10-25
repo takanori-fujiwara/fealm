@@ -8,6 +8,7 @@ from pymanopt.manifolds.product import Product
 from pymanopt.manifolds import Sphere
 from pymanopt.manifolds.stiefel import Stiefel
 from pymanopt.manifolds import Grassmann
+from pymanopt.manifolds.oblique import Oblique
 from pymanopt.manifolds.euclidean import Euclidean
 
 from pymanopt.optimizers.particle_swarm import ParticleSwarm
@@ -15,9 +16,50 @@ from pymanopt.optimizers.steepest_descent import SteepestDescent
 
 
 class ModifiedEuclidean(Euclidean):
-    # Note: the original pymanopt implenetation has a bug for random_point
+    # Note: the original pymanopt implementation has a bug for
+    # random_point, zero_vector
     def random_point(self):
         return np.random.normal(size=self._shape[0])
+
+    def zero_vector(self, point):
+        return np.zeros(self._shape[0])
+
+
+class ModifiedOblique(Oblique):
+    # Note: the original pymanopt implementation does not have _shape
+    # def __init__(self, m: int, n: int):
+    #     self._shape = (m, n)
+    #     super().__init__(m, n)
+
+    # # original normalize column can make NaN (when all elements are 0)
+    # def _normalize_columns(self, array):
+    #     col_norm = np.linalg.norm(array, axis=0)[np.newaxis, :]
+    #     return np.where(col_norm == 0, 1 / array.shape[0]**0.5,
+    #                     array / col_norm)
+    #
+    # # same with the above
+    # def random_tangent_vector(self, point):
+    #     vector = np.random.normal(size=point.shape)
+    #     tangent_vector = self.projection(point, vector)
+    #     tangent_vector_norm = self.norm(point, tangent_vector)
+    #
+    #     return np.where(tangent_vector_norm == 0, 1 / len(tangent_vector)**0.5,
+    #                     tangent_vector / tangent_vector_norm)
+
+    def log(self, point_a, point_b):
+        vector = self.projection(point_a, point_b - point_a)
+        distances = np.arccos((point_a * point_b).sum(0))
+        norms = np.sqrt((vector**2).sum(0)).real
+        # Try to avoid zero-division when both distances and norms are almost
+        # zero.
+        epsilon = np.finfo(np.float64).eps
+
+        # actually when distances are really zero, np.arccos returns nan
+        distances[np.isnan(distances)] = np.finfo(np.float64).eps
+
+        factors = (distances + epsilon) / (norms + epsilon)
+
+        return vector * factors
 
 
 class Optimization():
@@ -27,10 +69,10 @@ class Optimization():
                  graph_dissim,
                  graph_dissim_reduce_func=np.min,
                  optimizer=ParticleSwarm(),
-                 form='wM',
+                 form='no_constraint',
                  n_trials_for_mat_decomp=5):
         '''
-        form: {'w', 'M', 'wM', 'Mv', 'wMv', 'p_wMv', 'no_constraint'}
+        form: {'w', 'M', 'wM', 'Mv', 'wMv', 'no_constraint'}
         '''
         self.graph_func = graph_func
         self.graph_dissim = graph_dissim
@@ -77,12 +119,26 @@ class Optimization():
     def _regularization_penalty(self, P, lasso_coeff=0, ridge_coeff=0):
         l1_sum = 0
         l2_sum = 0
-        if lasso_coeff != 0:
-            l1_sum = P.sum(axis=0).sum()
-        if ridge_coeff != 0:
-            l2_sum = (P**2).sum(axis=0).sum()
+        entropy_sum = 0
 
-        return l1_sum + l2_sum
+        if lasso_coeff != 0:
+            l1_sum = np.abs(P).sum(axis=0).sum()
+
+        # here l2 reg is applied to compare each column of P
+        if ridge_coeff != 0:
+            l2_sum = np.sqrt((P**2).sum(axis=1)).sum()
+
+        # here entropy reg is applied to compare each column of P
+        if entropy_coeff != 0:
+            # make every number positive
+            P_ = (P - P.min(axis=0)) / (P.max(axis=0) -
+                                        P.min(axis=0)) + np.finfo(float).eps
+            entropy_sum = -(P_ * np.log(P_)).sum(axis=1).sum()
+
+        # print(lasso_coeff * l1_sum, ridge_coeff * l2_sum,
+        #       entropy_coeff * entropy_sum)
+
+        return lasso_coeff * l1_sum + ridge_coeff * l2_sum + entropy_coeff * entropy_sum
 
     def _eval_cost(self,
                    X,
@@ -90,6 +146,7 @@ class Optimization():
                    Gs,
                    lasso_coeff=0,
                    ridge_coeff=0,
+                   entropy_coeff=0,
                    gd_params={},
                    gd_preprocessed_data=None):
         new_G = self._construct_graph(X, P)
@@ -100,11 +157,16 @@ class Optimization():
             gd_params=gd_params,
             gd_preprocessed_data=gd_preprocessed_data)
         regularization_penalty = self._regularization_penalty(
-            P, lasso_coeff=lasso_coeff, ridge_coeff=ridge_coeff)
+            P,
+            lasso_coeff=lasso_coeff,
+            ridge_coeff=ridge_coeff,
+            entropy_coeff=entropy_coeff)
 
         dissim_with_penalty = dissim - regularization_penalty
+        # print(dissim, regularization_penalty, dissim_with_penalty)
 
-        cost = 1 / dissim_with_penalty if dissim_with_penalty > 0 else np.inf
+        # cost = 1 / dissim_with_penalty if dissim_with_penalty > 0 else np.inf
+        cost = -dissim_with_penalty
 
         return cost
 
@@ -115,10 +177,11 @@ class Optimization():
                        Gs,
                        lasso_coeff=0,
                        ridge_coeff=0,
+                       entropy_coeff=0,
                        gd_params={},
                        gd_preprocessed_data=None):
         '''
-        form: w, M, wM, Mv, wMv, p_wMV, no_constraint
+        form: w, M, wM, Mv, wMv, no_constraint
         '''
         vec_len = np.sqrt(X.shape[1])
 
@@ -133,9 +196,10 @@ class Optimization():
                     Gs=Gs,
                     lasso_coeff=lasso_coeff,
                     ridge_coeff=ridge_coeff,
+                    entropy_coeff=entropy_coeff,
                     gd_params=gd_params,
                     gd_preprocessed_data=gd_preprocessed_data)
-        elif form == 'M' or form == 'no_constraint':
+        elif form == 'M':
             # M
             @pymanopt.function.autograd(manifold)
             def _cost_func(M):
@@ -145,6 +209,7 @@ class Optimization():
                     Gs=Gs,
                     lasso_coeff=lasso_coeff,
                     ridge_coeff=ridge_coeff,
+                    entropy_coeff=entropy_coeff,
                     gd_params=gd_params,
                     gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'wM':
@@ -157,6 +222,7 @@ class Optimization():
                     Gs=Gs,
                     lasso_coeff=lasso_coeff,
                     ridge_coeff=ridge_coeff,
+                    entropy_coeff=entropy_coeff,
                     gd_params=gd_params,
                     gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'Mv':
@@ -169,6 +235,7 @@ class Optimization():
                     Gs=Gs,
                     lasso_coeff=lasso_coeff,
                     ridge_coeff=ridge_coeff,
+                    entropy_coeff=entropy_coeff,
                     gd_params=gd_params,
                     gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'wMv':
@@ -182,6 +249,20 @@ class Optimization():
                     Gs=Gs,
                     lasso_coeff=lasso_coeff,
                     ridge_coeff=ridge_coeff,
+                    entropy_coeff=entropy_coeff,
+                    gd_params=gd_params,
+                    gd_preprocessed_data=gd_preprocessed_data)
+        elif form == 'no_constraint':
+
+            @pymanopt.function.autograd(manifold)
+            def _cost_func(P):
+                return self._eval_cost(
+                    X,
+                    P=P,
+                    Gs=Gs,
+                    lasso_coeff=lasso_coeff,
+                    ridge_coeff=ridge_coeff,
+                    entropy_coeff=entropy_coeff,
                     gd_params=gd_params,
                     gd_preprocessed_data=gd_preprocessed_data)
 
@@ -197,7 +278,7 @@ class Optimization():
 
     def _gen_manifold(self, form, n_attrs, n_components=None):
         '''
-        form: w, M, wM, Mv, wMv, p_wMV, no_constraint
+        form: w, M, wM, Mv, wMv, no_constraint
         '''
         manifold = None
         if form == 'w':
@@ -218,14 +299,14 @@ class Optimization():
             manifold_unitvec2 = Sphere(n_components)
             manifold = Product(
                 [manifold_unitvec1, manifold_orth, manifold_unitvec2])
-        elif form == 'no_constraint' or form == 'p_wMv':
-            manifold = ModifiedEuclidean((n_attrs, n_components))
+        elif form == 'no_constraint':
+            manifold = ModifiedOblique(n_attrs, n_components)
 
         return manifold
 
     def _to_wMv(self, form, answer, n_attrs, n_components=None):
         '''
-        form: w, M, wM, Mv, wMv, p_wMV, no_constraint
+        form: w, M, wM, Mv, wMv, no_constraint
         '''
         w, M, v = (None, None, None)
         if form == 'w':
@@ -252,9 +333,6 @@ class Optimization():
             w = np.ones(n_attrs)
             M = answer
             v = np.ones(n_components)
-        elif self.form == 'p_wMv':
-            # approximate P (no constraint) in diag(w) @ M @ diag.(v) form
-            w, M, v = self.mat_decomp(answer, form='wMv')
 
         return w, M, v
 
@@ -303,10 +381,15 @@ class Optimization():
             n_components=None,
             lasso_coeff=0,
             ridge_coeff=0,
+            entropy_coeff=0,
             multiple_answers=False,
             gd_params={},
             gd_preprocessed_data=None):
         n_attrs = X.shape[1]
+        if n_components == None and not self.form == 'w':
+            self.form = 'w'
+            print('because n_components is None, w is used as form')
+
         manifold = self._gen_manifold(form=self.form,
                                       n_attrs=n_attrs,
                                       n_components=n_components)
@@ -317,6 +400,7 @@ class Optimization():
             Gs=Gs,
             lasso_coeff=lasso_coeff,
             ridge_coeff=ridge_coeff,
+            entropy_coeff=entropy_coeff,
             gd_params=gd_params,
             gd_preprocessed_data=gd_preprocessed_data)
         self.problem = pymanopt.Problem(manifold=manifold, cost=cost_func)
