@@ -588,13 +588,7 @@ def _extract_cluster(G, S, n_walks):
 
 
 def _dbscan(D, indices):
-<<<<<<< HEAD
     import hdbscan  # TODO: this version of the package is problematic now
-=======
-    # note: the latest hdbscan causes error when loaded. So, snc doesn't work.
-    import hdbscan
-
->>>>>>> f7cef880edb69588b5ec6795e34e8571a59fcfd9
     related_D = (D[indices].T)[indices]
     np.fill_diagonal(related_D, 0)
 
