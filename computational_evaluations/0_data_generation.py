@@ -24,7 +24,7 @@ if __name__ == '__main__':
     documents_cv = cv.fit_transform(documents[:n_docs_used])
 
     # apply Latent Dirichlet Allocation to make arbitrary # of attributes
-    for n_topics in [5, 10, 20, 40]:
+    for n_topics in [5, 10, 20]:
         # this is to avoid using large memory space by using many workers
         n_jobs = -1
         if n_topics > 500:
@@ -43,7 +43,10 @@ if __name__ == '__main__':
                                         n_jobs=n_jobs)
         X = lda.fit_transform(documents_cv)
 
-        for n_intances in [50, 100, 200, 400, 800, 1600]:
+        # for n_intances in [50, 100, 200, 400, 800, 1600, 3200]:
+        for n_intances in [
+                50, 100, 200, 400, 800, 1200, 1600, 2000, 2400, 2800, 3200
+        ]:
             sampled_indices = sample(list(range(X.shape[0])), n_intances)
             X_sub = X[sampled_indices, :]
 

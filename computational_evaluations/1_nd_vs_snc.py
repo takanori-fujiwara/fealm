@@ -43,16 +43,16 @@ if __name__ == '__main__':
     pd.DataFrame({
         'nd': nd_results,
         'snc': mean_snc_results
-    }).to_csv('./result/2_nd_vs_snc.csv', index=False)
+    }).to_csv('./result/1_nd_vs_snc.csv', index=False)
 
-    np.save('./result/2_set_of_snc_results.npy', set_of_snc_results)
+    np.save('./result/1_set_of_snc_results.npy', set_of_snc_results)
     # np.load('set_of_snc_results.npy')
 
     import seaborn as sns
     import matplotlib.pyplot as plt
     from scipy.stats import pearsonr, spearmanr
 
-    df = pd.read_csv('./result/2_nd_vs_snc.csv').iloc[:500, :]
+    df = pd.read_csv('./result/1_nd_vs_snc.csv').iloc[:500, :]
     print('pearsonr:', pearsonr(df['snc'], df['nd']))
     print('spearmanr:', spearmanr(df['snc'], df['nd']))
     # both over 0.7: strong correlation
@@ -63,16 +63,16 @@ if __name__ == '__main__':
                x='SnC',
                y='ND',
                scatter_kws={
-                   "s": 20,
+                   "s": 10,
                    "alpha": 1,
                    'color': 'gray'
                },
                line_kws={'color': 'tab:pink'},
                ci=None,
                height=2.5,
-               aspect=1.6)
+               aspect=1.1)
     plt.xlabel(r'$d_\mathrm{SnC}$')
     plt.ylabel(r'$d_\mathrm{ND}$')
     plt.tight_layout()
-    plt.savefig('./result/2_nd_vs_snc.pdf')
+    plt.savefig('./result/1_nd_vs_snc.pdf')
     plt.show()

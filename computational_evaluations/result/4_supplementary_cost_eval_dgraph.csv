@@ -1,0 +1,101 @@
+n,f_name,time
+50,NetLSD (netrd),38.65953588
+50,NetLSD (ours),3.13934207
+50,Communicability JSD,5.785542965
+50,dk Series,24.56071019
+50,Onion Divergence,51.73714399
+50,Quantum JSD,30.15210509
+50,Degree Divergence,0.357313156
+50,Graph Diffusion,63.3043282
+50,NetSimile,281.9123988
+50,Distributional NBD,58.32872224
+50,Hamming,3.041418076
+50,Hamming Ipsen Mikhailov,64.30046582
+50,Ipsen Mikhailov,79.95610523
+50,Jaccard Distance,0.210624218
+50,Laplacian Spectral,364.7423632
+50,Non-backtracking Spectral,87.08944678
+50,Polynomial Dissimilarity,43.30023384
+50,DeltaCon (netrd),21.21861911
+50,DeltaCon (ours),0.487373114
+50,Frobenius,2.799934149
+50,Portrait Divergence,48.08426619
+100,NetLSD (netrd),67.19290519
+100,NetLSD (ours),8.37065196
+100,Communicability JSD,27.82655001
+100,dk Series,47.9644649
+100,Onion Divergence,115.2353971
+100,Quantum JSD,69.00826788
+100,Degree Divergence,0.469504833
+100,Graph Diffusion,227.134356
+100,NetSimile,523.6128671
+100,Distributional NBD,127.787585
+100,Hamming,5.697419167
+100,Hamming Ipsen Mikhailov,144.9324641
+100,Ipsen Mikhailov,121.914432
+100,Jaccard Distance,0.614372015
+100,Laplacian Spectral,448.0156829
+100,Non-backtracking Spectral,444.7871151
+100,Polynomial Dissimilarity,90.350914
+100,DeltaCon (netrd),39.51403093
+100,DeltaCon (ours),1.530778885
+100,Frobenius,5.157179832
+100,Portrait Divergence,165.452251
+200,NetLSD (netrd),127.521199
+200,NetLSD (ours),27.14758301
+200,Communicability JSD,78.75149584
+200,dk Series,94.48797417
+200,Onion Divergence,261.132499
+200,Quantum JSD,131.255549
+200,Degree Divergence,0.717438221
+200,Graph Diffusion,1366.659548
+200,NetSimile,1014.832516
+200,Distributional NBD,298.0500631
+200,Hamming,11.14508104
+200,Hamming Ipsen Mikhailov,296.9188919
+200,Ipsen Mikhailov,240.0418718
+200,Jaccard Distance,1.174106121
+200,Laplacian Spectral,587.429347
+200,Non-backtracking Spectral,781.0402269
+200,Polynomial Dissimilarity,185.232245
+200,DeltaCon (netrd),79.44692922
+200,DeltaCon (ours),2.666523218
+200,Frobenius,11.89639926
+200,Portrait Divergence,626.1879768
+400,NetLSD (netrd),262.3897159
+400,NetLSD (ours),32.31647301
+400,Communicability JSD,263.0732572
+400,dk Series,197.1023548
+400,Onion Divergence,639.26091
+400,Quantum JSD,268.456356
+400,Degree Divergence,1.179545164
+400,Distributional NBD,950.8243709
+400,Hamming,24.03448391
+400,Hamming Ipsen Mikhailov,801.6778121
+400,Ipsen Mikhailov,458.557874
+400,Jaccard Distance,2.670744181
+400,Polynomial Dissimilarity,414.2432127
+400,DeltaCon (netrd),160.9179761
+400,DeltaCon (ours),9.91728735
+400,Frobenius,23.72252178
+800,NetLSD (netrd),642.8603599
+800,NetLSD (ours),35.8343029
+800,Communicability JSD,1035.347826
+800,dk Series,393.0571861
+800,Quantum JSD,645.131829
+800,Degree Divergence,2.122987032
+800,Hamming,67.85307598
+800,Ipsen Mikhailov,1088.117519
+800,Jaccard Distance,4.639402628
+800,Polynomial Dissimilarity,1170.721414
+800,DeltaCon (netrd),327.194382
+800,DeltaCon (ours),37.16524196
+800,Frobenius,53.14681196
+1600,NetLSD (ours),125.9845541
+1600,dk Series,802.3891699
+1600,Degree Divergence,3.843694925
+1600,Hamming,152.2013021
+1600,Jaccard Distance,14.11153889
+1600,DeltaCon (netrd),774.8356729
+1600,DeltaCon (ours),147.5158198
+1600,Frobenius,110.327281

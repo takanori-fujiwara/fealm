@@ -13,11 +13,13 @@ import fealm.graph_dissim as gd
 from sklearn.neighbors import kneighbors_graph
 
 if __name__ == '__main__':
+    np.random.seed(0)
+
     k = 15  # UMAP's default
     m = 10
     ns = [50, 100, 200, 400, 800, 1600]
     n_prevs = [None, 50, 100, 200, 400, 800]
-    n_repeats = 100  # e.g., 100 = 1000 populations for 10 cores
+    n_repeats = 1000
     to_data_name = lambda n: f'./data/document_vec_n{n}_m{m}.npy'
 
     f_gr = lambda X: gf.nearest_nbr_graph(X, n_neighbors=k)
@@ -55,7 +57,8 @@ if __name__ == '__main__':
         lambda G1, G2: netrd_netlsd.dist(
             G1, G2, normalization=None, timescales=None),
         'NetLSD (ours)':
-        lambda G1, G2, sig1: gd.netlsd(G1, G2, sig1=sig1),
+        lambda G1, G2, sig1, eigsh_v0: gd.netlsd(
+            G1, G2, sig1=sig1, eigsh_v0=eigsh_v0),
         'Communicability JSD':
         communicability_jsd.dist,
         'dk Series':
@@ -74,8 +77,8 @@ if __name__ == '__main__':
             G1, G2, thresh=1e-08, resolution=1000),
         'NetSimile':
         netsimile.dist
-        # 'Resistance Perturbation': # resistance_perturbation doesn't work for nonconnected graph
-        # lambda G1, G2: resistance_perturbation.dist(G1, G2, p=2)
+        'Resistance Perturbation': # resistance_perturbation doesn't work for nonconnected graph
+        lambda G1, G2: resistance_perturbation.dist(G1, G2, p=2)
     }
 
     d_gr_directed = {
@@ -130,7 +133,7 @@ if __name__ == '__main__':
 
     d_gr = {'undirected': d_gr_undirected, 'directed': d_gr_directed}
 
-    csv_path = './result/5_supplementary_cost_eval_dgraph.csv'
+    csv_path = './result/4_supplementary_cost_eval_dgraph.csv'
     file = open(csv_path, 'w')
     file.write('n,f_name,time\n')
     file.close()
@@ -143,11 +146,11 @@ if __name__ == '__main__':
                 # skip measures spent more than 60 seconds
                 if n_prev:
                     df = pd.read_csv(
-                        './result/5_supplementary_cost_eval_dgraph.csv')
+                        './result/4_supplementary_cost_eval_dgraph.csv')
                     prev_time = df.loc[(df['n'] == n_prev) &
                                        (df['f_name'] == f_name),
                                        df.columns == 'time']
-                    if len(prev_time) == 0 or float(prev_time['time']) > 60:
+                    if len(prev_time) == 0 or float(prev_time['time']) > 540:
                         print('skipped', f_name)
                         continue
 
@@ -165,7 +168,13 @@ if __name__ == '__main__':
                         G2 = G2 + G2.T - G2 * G2.T
                     # utilize precomputation, which is effective when using FEALM
                     sig1 = gd._lsd_trace_signature(G1)
-                    kwargs = {'G1': G1, 'G2': G2, 'sig1': sig1}
+                    eigsh_v0 = np.random.rand(min(G1.shape))
+                    kwargs = {
+                        'G1': G1,
+                        'G2': G2,
+                        'sig1': sig1,
+                        'eigsh_v0': eigsh_v0
+                    }
                 elif f_name == 'DeltaCon (ours)':
                     G1 = f_gr(X[:, :int(m / 2)])
                     G2 = f_gr(X[:, int(m / 2):])
@@ -195,7 +204,7 @@ if __name__ == '__main__':
     import seaborn as sns
     import matplotlib.pyplot as plt
 
-    df = pd.read_csv('./result/5_supplementary_cost_eval_dgraph.csv')
+    df = pd.read_csv('./result/4_supplementary_cost_eval_dgraph.csv')
 
     # select only 10 representatives
     plotting_fnames = [
@@ -219,9 +228,9 @@ if __name__ == '__main__':
     plt.figure(figsize=(8, 4))
     sns.lineplot(data=data, x='n', y='Completion Time (sec)', hue='Measure')
     plt.xlabel(r'$n$')
-    plt.ylim([0, 60])
+    plt.ylim([0, 540])
     plt.xlim([0, 1600])
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     plt.tight_layout()
-    plt.savefig('./result/5_supplementary_cost_eval_dgraph.pdf')
+    plt.savefig('./result/4_supplementary_cost_eval_dgraph.pdf')
     plt.show()

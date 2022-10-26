@@ -4,13 +4,15 @@ import pandas as pd
 
 import fealm.graph_func as gf
 import fealm.graph_dissim as gd
+from fealm.fealm import FEALM
 from umap import UMAP
 
 if __name__ == '__main__':
     k = 15  # UMAP's default
     m = 10
-    ns = [50, 100, 200, 400, 800, 1600]
-    n_repeats = 100  # e.g., 100 = 1000 populations for 10 cores
+    q = 50
+    ns = [50, 100, 200, 400, 800, 1200, 1600, 2000, 2400, 2800, 3200]
+    n_repeats = 1000  # e.g., 100 = 1000 populations for 10 cores
     to_data_name = lambda n: f'./data/document_vec_n{n}_m{m}.npy'
 
     umap = UMAP(n_components=2, n_neighbors=k)
@@ -23,11 +25,12 @@ if __name__ == '__main__':
     d_nd = lambda G1, G2, S1, sig1: gd.snn_dissim(
         G1, G2, S1=S1, fixed_degree=k)
 
-    d_sd = lambda G1, G2, S1, sig1: gd.netlsd(G1, G2, sig1=sig1)
+    d_sd = lambda G1, G2, S1, sig1: gd.netlsd(
+        G1, G2, sig1=sig1, n_eigvals=(int(q / 2), int(q / 2)))
 
-    beta = 0.5
-    d_nsd = lambda G1, G2, S1, sig1: d_nd(G1, G2, S1, sig1)**beta + d_sd(
-        G1, G2, S1, sig1)
+    beta = 1
+    d_nsd = lambda G1, G2, S1, sig1: d_nd(G1, G2, S1, sig1)**beta + np.log(
+        1 + d_sd(G1, G2, S1, sig1))
 
     # n_iter and walk_ratio follow Jeon et al.'s default
     d_snc = lambda G1, G2, S1, sig1: gd.snc_dissim(
@@ -58,7 +61,9 @@ if __name__ == '__main__':
                 G1 = f_gr(X[:, :int(m / 2)])
                 G2 = f_gr(X[:, int(m / 2):])
                 S1 = gd._shared_neighbor_sim(G1, k=k)
-                sig1 = gd._lsd_trace_signature(G1)
+                sig1 = gd._lsd_trace_signature(G1,
+                                               n_eigvals=(int(q / 2),
+                                                          int(q / 2)))
                 kwargs = {'G1': G1, 'G2': G2, 'S1': S1, 'sig1': sig1}
 
             s = time.time()
@@ -69,24 +74,46 @@ if __name__ == '__main__':
             result.append({'n': n, 'f_name': f_name, 'time': e - s})
             print(f'n{n} {f_name} {e - s}')
 
-    pd.DataFrame(result).to_csv('./result/1_unit_cost_eval.csv', index=False)
+    m_prime = 2
+    n_jobs = 4
+
+    for n in ns:
+        X = np.load(to_data_name(n))
+        fealm = FEALM(n_neighbors=k,
+                      projection_form='no_constraint',
+                      n_components=m_prime,
+                      n_repeats=1,
+                      pso_population_size=None,
+                      pso_n_nonbest_solutions=0,
+                      pso_n_iterations=n_repeats,
+                      pso_n_jobs=n_jobs)
+
+        s = time.time()
+        fealm = fealm.fit(X)
+        e = time.time()
+        result.append({'n': n, 'f_name': 'FEALM-UMAP', 'time': e - s})
+        print(f'n{n} FEALM-UMAP {e - s}')
+
+    pd.DataFrame(result).to_csv('./result/2_cost_eval.csv', index=False)
 
     import seaborn as sns
     import matplotlib.pyplot as plt
 
-    df = pd.read_csv('./result/1_unit_cost_eval.csv')
+    df = pd.read_csv('./result/2_cost_eval.csv')
 
     # remove f_dr and d_snc (much slower than others)
     df = df[df['f_name'] != 'f_dr']
     df = df[df['f_name'] != 'd_snc']
 
+    df.loc[df['f_name'] == 'FEALM-UMAP', df.columns == 'f_name'] = 'FEALM'
     df.loc[df['f_name'] == 'f_gr', df.columns == 'f_name'] = r'$k$-NN'
     df.loc[df['f_name'] == 'd_nd', df.columns == 'f_name'] = r'$d_\mathrm{ND}$'
     df.loc[df['f_name'] == 'd_sd', df.columns == 'f_name'] = r'$d_\mathrm{SD}$'
     df.loc[df['f_name'] == 'd_nsd',
            df.columns == 'f_name'] = r'$d_\mathrm{NSD}$'
     hue_order = [
-        r'$d_\mathrm{NSD}$', r'$d_\mathrm{SD}$', r'$d_\mathrm{ND}$', r'$k$-NN'
+        'FEALM', r'$d_\mathrm{NSD}$', r'$d_\mathrm{ND}$', r'$d_\mathrm{SD}$',
+        r'$k$-NN'
     ]
 
     data = pd.DataFrame({
@@ -95,13 +122,20 @@ if __name__ == '__main__':
         'Function': df['f_name']
     })
 
-    plt.figure(figsize=(4, 2.5))
+    # plt.figure(figsize=(4, 2.5))
+    fig, ax = plt.subplots(figsize=(2.75, 2.5))
     sns.lineplot(data=data,
                  x='n',
                  y='Completion Time (sec)',
                  hue='Function',
                  hue_order=hue_order)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles, labels=labels)
     plt.xlabel(r'$n$')
     plt.tight_layout()
-    plt.savefig('./result/1_unit_cost_eval.pdf')
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.xaxis.set_ticks_position('bottom')
+    ax.yaxis.set_ticks_position('left')
+    plt.savefig('./result/2_cost_eval.pdf')
     plt.show()
