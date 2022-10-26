@@ -1,4 +1,7 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 from umap import UMAP
 from sklearn.manifold import TSNE
 

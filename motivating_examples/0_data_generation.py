@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.preprocessing import scale
 
 
-def make_spheres(aiming_n_samples=150, noise=0.05, random_state=0, factor=0.1):
+def make_spheres(aiming_n_samples=150, factor=0.4, noise=0.06, random_state=0):
     from sklearn.utils import check_random_state
 
     if factor >= 1 or factor < 0:
