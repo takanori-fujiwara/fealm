@@ -5,7 +5,6 @@ from sklearn import datasets
 from sklearn.preprocessing import scale
 from umap import UMAP
 
-from fealm.fealm import FEALM
 import fealm.plot as fplot
 
 import json
@@ -31,16 +30,26 @@ if __name__ == '__main__':
     fplot.plot_embeddings([Y], y)
     plt.show()
 
+    from fealm.fealm import FEALM
+
     forms_to_settings = {
         'w': {
+            'n_repeats': 30,
             'n_components': None,
-            'pso_population_size': 500,
-            'pso_n_nonbest_solutions': 20,
+            'pso_n_iterations': 3000,
+            'pso_population_size': None,
+            'pso_n_nonbest_solutions': 0,
+            'lasso_coeff': -10,
+            'ridge_coeff': 0,
         },
         'p_wMv': {
+            'n_repeats': 10,
             'n_components': 3,
-            'pso_population_size': 1000,
-            'pso_n_nonbest_solutions': 20,
+            'pso_n_iterations': 3000,
+            'pso_population_size': None,
+            'pso_n_nonbest_solutions': 0,
+            'lasso_coeff': 10,
+            'ridge_coeff': 0,
         }
     }
 
@@ -50,11 +59,13 @@ if __name__ == '__main__':
             n_neighbors=n_neighbors,
             projection_form=form,
             n_components=forms_to_settings[form]['n_components'],
-            n_repeats=10,
-            pso_n_iterations=20,
+            n_repeats=forms_to_settings[form]['n_repeats'],
+            pso_n_iterations=forms_to_settings[form]['pso_n_iterations'],
             pso_population_size=forms_to_settings[form]['pso_population_size'],
             pso_n_nonbest_solutions=forms_to_settings[form]
-            ['pso_n_nonbest_solutions'])
+            ['pso_n_nonbest_solutions'],
+            lasso_coeff=forms_to_settings[form]['lasso_coeff'],
+            ridge_coeff=forms_to_settings[form]['ridge_coeff'])
         fealm = fealm.fit(X)
         Ps += fealm.Ps
 

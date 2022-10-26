@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -6,20 +7,14 @@ from sklearn import datasets
 from sklearn import preprocessing
 
 from umap import UMAP
-
-from fealm.opt_set_proj import OptSetProj
 import fealm.plot as fplot
 
-import pyreadstat  # please install via pip (pip3 install pyreadstat)
-from ppic_meta import metainfo
-
 if __name__ == '__main__':
-    n_results = 20
-    opt = OptSetProj()
+    n_neighbors = 15
+    min_dist = 0.1
+    umap = UMAP(n_components=2, n_neighbors=n_neighbors, min_dist=min_dist)
 
-    #########
     # 1. Wine
-    #########
     dataset = datasets.load_wine()
     X = dataset.data
     y = dataset.target
@@ -31,120 +26,225 @@ if __name__ == '__main__':
     scaler = preprocessing.StandardScaler()
     X = scaler.fit_transform(X)
 
-    n_neighbors = 15
-    min_dist = 0.1
-
-    # select only od280/od315
-    X_od = X[:, feat_names.index('od280/od315_of_diluted_wines')][:,
-                                                                  np.newaxis]
-    Y = UMAP(n_components=2, n_neighbors=n_neighbors,
-             min_dist=min_dist).fit_transform(X_od)
+    # select only mineral related attrs
+    X_mineral = X[:, [
+        feat_names.index('ash'),
+        feat_names.index('alcalinity_of_ash'),
+        feat_names.index('magnesium')
+    ]]
+    Y = umap.fit_transform(X_mineral)
     fig = fplot.plot_embeddings([Y],
                                 y + 1,
                                 palette=sns.color_palette(
                                     ['#507AA6', '#F08E39', '#5BA053']))
-    fig.axes[0].set_title('Using only od280/od315')
-    plt.savefig(f'./result/supplementary/od280od315_wine.pdf')
+    fig.axes[0].set_title('Using only ash, \nash alcalinity, and magnesium')
+    plt.tight_layout()
+    plt.savefig(f'./result/supplementary/mineral_wine.pdf')
     plt.show()
 
-    # select only color intensity
-    X_ci = X[:, feat_names.index('color_intensity')][:, np.newaxis]
+    # select three taste related attrs
+    X_taste = X[:, [
+        feat_names.index('malic_acid'),
+        feat_names.index('proanthocyanins'),
+        feat_names.index('flavanoids')
+    ]]
     Y = UMAP(n_components=2, n_neighbors=n_neighbors,
-             min_dist=min_dist).fit_transform(X_ci)
+             min_dist=min_dist).fit_transform(X_taste)
     fig = fplot.plot_embeddings([Y],
                                 y + 1,
                                 palette=sns.color_palette(
                                     ['#507AA6', '#F08E39', '#5BA053']))
-    fig.axes[0].set_title('Using only color intensity')
-    plt.savefig(f'./result/supplementary/colorintensity_wine.pdf')
+    fig.axes[0].set_title(
+        'Using only malic acid, \nproanthocyanins, and flavanoids')
+    plt.tight_layout()
+    plt.savefig(f'./result/supplementary/taste_wine.pdf')
     plt.show()
 
-    #########
-    # 2. PPIC
-    #########
-    df, meta = pyreadstat.read_sav('./data/ppic/2018.10.24.release.sav')
+    # 2. CCES
+    q2type = {
+        'CC20.302': 'ordinal',
+        'CC20.307': 'ordinal',
+        'CC20.320a': 'ordinal',
+        'CC20.327a': 'binary',
+        'CC20.327d': 'binary',
+        'CC20.327e': 'binary',
+        'CC20.330b': 'binary',
+        'CC20.330c': 'binary',
+        'CC20.331a': 'binary',
+        'CC20.331b': 'binary',
+        'CC20.331c': 'binary',
+        'CC20.331d': 'binary',
+        'CC20.331e': 'binary',
+        'CC20.332a': 'binary',
+        'CC20.332b': 'binary',
+        'CC20.332c': 'binary',
+        'CC20.332d': 'binary',
+        'CC20.332e': 'binary',
+        'CC20.332f': 'binary',
+        'CC20.333a': 'binary',
+        'CC20.333b': 'binary',
+        'CC20.333c': 'binary',
+        'CC20.333d': 'binary',
+        'CC20.334a': 'binary',
+        'CC20.334b': 'binary',
+        'CC20.334c': 'binary',
+        'CC20.334d': 'binary',
+        'CC20.334e': 'binary',
+        'CC20.334f': 'binary',
+        'CC20.334g': 'binary',
+        'CC20.334h': 'binary',
+        'CC20.338a': 'binary',
+        'CC20.338b': 'binary',
+        'CC20.338c': 'binary',
+        'CC20.338d': 'binary',
+        'CC20.340a': 'ordinal',
+        'CC20.350a': 'binary',
+        'CC20.350b': 'binary',
+        'CC20.350c': 'binary',
+        'CC20.350d': 'binary',
+        'CC20.350e': 'binary',
+        'CC20.350f': 'binary',
+        'CC20.350g': 'binary',
+        'CC20.355a': 'binary',
+        'CC20.355b': 'binary',
+        'CC20.355c': 'binary',
+        'CC20.355d': 'binary',
+        'CC20.355e': 'binary',
+        'CC20.356': 'binary',
+        'ideo5': 'ordinal',
+        'CC20.440a': 'ordinal',
+        'CC20.440b': 'ordinal',
+        'CC20.440c': 'ordinal',
+        'CC20.440d': 'ordinal',
+        'CC20.441a': 'ordinal',
+        'CC20.441b': 'ordinal',
+        'CC20.441e': 'ordinal',
+        'CC20.441f': 'ordinal',
+        'CC20.441g': 'ordinal',
+        'CC20.442a': 'binary',
+        'CC20.442b': 'binary',
+        'CC20.442c': 'binary',
+        'CC20.442d': 'binary',
+        'CC20.442e': 'binary',
+        'CC20.443.1': 'ordinal',
+        'CC20.443.2': 'ordinal',
+        'CC20.443.3': 'ordinal',
+        'CC20.443.4': 'ordinal',
+        'CC20.443.5': 'ordinal',
+        'label': 'categorical'
+    }
 
-    # covert code to binary, categorical, numeric numbers
-    for col_key in df:
-        df[col_key] = np.vectorize(metainfo[col_key]['code_num'])(df[col_key])
+    ordinal_cols = []
+    for key in q2type:
+        if q2type[key] == 'ordinal':
+            ordinal_cols.append(key)
+    ordinal_cols.append('label')
 
-    # remove attributes that we are not interested in
-    for col_key in df:
-        if metainfo[col_key]['use'] == 0:
-            del df[col_key]
+    def process_ccesdata(df,
+                         method='dropna',
+                         na_categories={
+                             'CC20_302': 6,
+                             'CC20_320a': 5,
+                             'CC20_340a': 8,
+                             'CC20_356': 3,
+                             'ideo5': 6
+                         }):
+        ### method={'fillna', 'fillna_with_mode', 'dropna'}
+        for col in na_categories:
+            df.loc[df[col] == na_categories[col], col] = np.nan
 
-    # we only want to compare democrat vs republican supporters
-    # 1: Democrat, 2: Republican
-    df.drop(np.where(df['q4a'] > 2)[0], axis=0, inplace=True)
-    df.reset_index(inplace=True, drop=True)
+        if method == 'fillna':
+            fillna_based_on_dtype(df)
+        elif method == 'fillna_with_mode':
+            df = df.fillna(df.mode().iloc[0])
+        elif method == 'dropna':
+            df = df.dropna()
 
-    # combine planned- and used-vote method
-    df['q37a'][df['q37a'] == 999] = df['q37b'][df['q37a'] == 999]
-    df.drop(['q37b'], axis=1, inplace=True)
+        df = df.astype(int)
 
-    # also drop other non-important attributes to reduce # of nan
-    # (e.g., there is a similar quesiton or related to the dropped cols)
-    # 'q10: satisfy_senate_choice',
-    # 'q12: congress_trump',
-    # 'q15: importance_proposition6',
-    # 'q17: imortance_proposition10',
-    df.drop(['q10', 'q12', 'q15', 'q17'], axis=1, inplace=True)
+        df.columns = df.columns.str.replace('_', '.')
+        X_dem = df[df['CC20.433a'] == 1].drop(columns=['CC20.433a'])
+        X_rep = df[df['CC20.433a'] == 2].drop(columns=['CC20.433a'])
+        X_ind = df[df['CC20.433a'] == 3].drop(columns=['CC20.433a'])
+        X_oth = df[df['CC20.433a'] == 4].drop(columns=['CC20.433a'])
 
-    # remove attributes that have many nan values
-    col_na_ratios = np.array(
-        [np.sum(df[col_key] == 999) / df.shape[0] for col_key in df])
-    df.drop(df.columns[np.where(col_na_ratios > 0.1)[0]], axis=1, inplace=True)
+        X = pd.concat([X_dem, X_rep, X_ind, X_oth])
+        X['label'] = ['Dem'] * X_dem.shape[0] + ['Rep'] * X_rep.shape[0] + [
+            'Ind'
+        ] * X_ind.shape[0] + ['Oth'] * X_oth.shape[0]
 
-    # drop subjects who have NA in their answers
-    row_na_ratios = np.array(
-        [np.sum(row == 999) / df.shape[1] for index, row in df.iterrows()])
-    df = df.iloc[row_na_ratios <= 0.0, :]
-    df.reset_index(inplace=True, drop=True)
+        return X
 
-    # use q4a as label
-    y = np.array(df['q4a'])
-    y[y == 1] = 0  # democrat
-    y[y == 2] = 1  # republican
-    y_to_name = {0: 'Dem', 1: 'Rep'}
+    df = pd.read_csv('./data/CCES20.csv')
+    df = process_ccesdata(df, method='dropna')
+
+    df = df[ordinal_cols]
+
+    y = df.iloc[:, -1]
+    for class_id, target_name in zip([0, 1, 2, 3],
+                                     ['Dem', 'Rep', 'Ind', 'Oth']):
+        y = np.where(y == target_name, class_id, y)
+    y = y.astype('int')
+
+    df.drop(['label'], axis=1, inplace=True)
+
+    upper_tri = df.corr().abs().where(
+        np.triu(np.ones(df.corr().abs().shape), k=1).astype(bool))
+    to_drop = [
+        column for column in upper_tri.columns if any(upper_tri[column] >= 0.7)
+    ]
+    df.drop(to_drop, axis=1, inplace=True)
+
+    X = np.array(df)
+    inst_names = df.index
+    feat_names = list(df.columns)
     target_names = np.array(['Dem', 'Rep'])
     target_colors = np.array(['#507AA6', '#DF585C'])
 
-    df.drop(['q4a'], axis=1, inplace=True)
-    X = np.array(df)
-    inst_names = df.index
+    # select only Dem and Rep
+    np.random.seed(10)
+    idx_y0 = np.where(y == 0)[0]
+    idx_y1 = np.where(y == 1)[0]
 
-    feat_names = []
-    name_to_q = {}
-    for col_key in df.columns:
-        name = col_key
-        feat_names.append(name)
-        name_to_q[name] = col_key
-    feat_names = np.array(feat_names)
+    # make even # of samples
+    idx_y0 = np.random.randint(len(idx_y0), size=len(idx_y1))
+    idx = np.concatenate((idx_y0, idx_y1), axis=0)
+
+    X = X[idx, :]
+    inst_names = inst_names[idx]
+    y = y[idx]
 
     scaler = preprocessing.StandardScaler()
     X = scaler.fit_transform(X)
 
-    # select only Q24 and Q31
-    X_q24q31 = X[:, (feat_names == 'q24') | (feat_names == 'q31')]
-    Y = UMAP(n_components=2, n_neighbors=n_neighbors,
-             min_dist=min_dist).fit_transform(X_q24q31)
+    # CC20.307 and CC20.443.4
+    X_law = X[:,
+              [feat_names.index('CC20.307'),
+               feat_names.index('CC20.443.4')]]
+    Y = umap.fit_transform(X_law)
     fig = fplot.plot_embeddings([Y],
-                                y + 1,
+                                y,
                                 palette=sns.color_palette(
                                     ['#507AA6', '#DF585C']))
-    fig.axes[0].set_title('Using only Q24 and Q31')
-    plt.savefig(f'./result/supplementary/q24q31_ppic.pdf')
+    fig.axes[0].set_title('Using only CC20.307 and CC20.443.4')
+    plt.tight_layout()
+    plt.savefig(f'./result/supplementary/law_cces.pdf')
     plt.show()
 
-    # select only Q18, Q19, and D7
-    X_q18q19d7 = X[:, (feat_names == 'q18') | (feat_names == 'q19') |
-                   (feat_names == 'd7')]
-    Y = UMAP(n_components=2, n_neighbors=n_neighbors,
-             min_dist=min_dist).fit_transform(X_q18q19d7)
+    # CC20.307 and CC20.443.1, 2, 5
+    X_problems = X[:, [
+        feat_names.index('CC20.440b'),
+        feat_names.index('CC20.443.1'),
+        feat_names.index('CC20.443.2'),
+        feat_names.index('CC20.443.5')
+    ]]
+    Y = umap.fit_transform(X_problems)
     fig = fplot.plot_embeddings([Y],
-                                y + 1,
+                                y,
                                 palette=sns.color_palette(
                                     ['#507AA6', '#DF585C']))
-    fig.axes[0].set_title('Using only Q18, Q19, and D7')
-    plt.savefig(f'./result/supplementary/q18q19d7_ppic.pdf')
+    fig.axes[0].set_title(
+        'Using only CC20.307, CC20.443.1,\nCC20.443.2, and CC20.443.5')
+    plt.tight_layout()
+    plt.savefig(f'./result/supplementary/problems_cces.pdf')
     plt.show()
