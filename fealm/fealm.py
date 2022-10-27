@@ -13,7 +13,6 @@ from umap import UMAP
 
 import fealm.graph_dissim as gd
 import fealm.graph_func as gf
-from fealm.optimizer import ParticleSwarm
 from fealm.optimizer import AdaptiveNelderMead
 from fealm.optimization import Optimization
 
@@ -30,7 +29,8 @@ class FEALM():
     - projection_form
     - n_components (if "w" is not used as the form for feature learning)
     - n_repeats
-    - pso_* (based on the problem size, you might need to set larger numebers)
+    - lasso_coeff
+    - ridge_coeff (if "w" is not used as the form for feature learning)
 
     Parameters
     ----------
@@ -56,19 +56,6 @@ class FEALM():
     n_repeats: int, optional, (default=5)
         Number of iterative generations of feature leraning results.
         r in the paper.
-    pso_n_nonbest_solutions: int, optional, (default=10)
-        Number of non-best results included. s in the paper.
-    pso_nonbest_solution_selection: string, optional, (default='projection_dissim')
-        Method used for the selection of non-best results. Select from
-        {'projection_dissim' or 'random'}.
-    pso_n_iterations: int, optional, (default=10)
-        Number or optimization iterations for particle swarm optimization.
-        Higher number, more optimized results.
-    pso_n_jobs: int, optional, (default=-1)
-        Number of processes used for particle swarm optimization. When -1, all
-        available processes are used.
-    pso_max_time: float, optional, (default=3600)
-        Maximum time (in second) spent for particle swarm optimization.
     graph_func: function, optional, (default=None)
         Function used for graph generation. When None, k-nearest neigbor
         graph generation is used. f_Gr in the paper.
@@ -82,6 +69,17 @@ class FEALM():
         Function returning a dictionary containing preprocessed measures that
         can be used to speed up dissimilarity computation with graph_dissim.
         When None, S1 and sig1 in NSD will be precomputed for faster computation.
+    optimizer: optimizer, optional, (default=None)
+        If None, AdaptiveNelderMead with default parameters is used.
+    lasso_coeff: float, optional, (default=0)
+        Coefficient for Lasso/L1-penalty. \lambda_1 in the paper.
+    ridge_coeff: float, optional, (default=0)
+        Coefficient for Ridge/L2-penalty. \lambda_2 in the paper.
+    n_nonbest_solutions: int, optional, (default=10)
+        Number of non-best results included.
+    nonbest_solution_selection: string, optional, (default='projection_dissim')
+        Method used for the selection of non-best results. Select from
+        {'projection_dissim' or 'random'}.
     Attributes
     ----------
     Ps: list of numpy 2d array
@@ -100,48 +98,32 @@ class FEALM():
                  n_repeats=5,
                  projection_form='w',
                  n_components=None,
-                 pso_n_nonbest_solutions=1,
-                 pso_nonbest_solution_selection='projection_dissim',
-                 pso_population_size=None,
-                 pso_n_iterations=1000,
-                 pso_n_jobs=-1,
-                 pso_max_time=3600,
-                 single_evaluation_max_time=60,
                  graph_func=None,
                  graph_dissim=None,
                  graph_dissim_reduce_func=np.min,
                  graph_dissim_preprocessing=None,
+                 optimizer=None,
                  lasso_coeff=0,
                  ridge_coeff=0,
-                 entropy_coeff=0):
+                 n_nonbest_solutions=0,
+                 nonbest_solution_selection='projection_dissim'):
         self.n_neighbors = n_neighbors
         self.projection_form = projection_form
         self.n_components = n_components
         self.n_repeats = n_repeats
-        self.pso_n_nonbest_solutions = pso_n_nonbest_solutions
-        self.pso_nonbest_solution_selection = pso_nonbest_solution_selection
-        self.pso_population_size = pso_population_size
-        self.pso_n_iterations = pso_n_iterations
-        self.pso_n_jobs = pso_n_jobs
-        self.pso_max_time = pso_max_time
-        self.single_evaluation_max_time = single_evaluation_max_time
         self.graph_func = graph_func
         self.graph_dissim = graph_dissim
         self.graph_dissim_reduce_func = graph_dissim_reduce_func
         self.graph_dissim_preprocessing = graph_dissim_preprocessing
+        self.optimizer = optimizer
         self.lasso_coeff = lasso_coeff
         self.ridge_coeff = ridge_coeff
-        self.entropy_coeff = entropy_coeff
+        self.n_nonbest_solutions = n_nonbest_solutions
+        self.nonbest_solution_selection = nonbest_solution_selection
 
         self.opt = None
         self.Ps = None
         self.best_P_indices = None
-
-        if self.pso_population_size and self.pso_n_nonbest_solutions > self.pso_population_size:
-            print(
-                'pso_n_nonbest_solutions must not be larger than pso_population_size. pso_n_nonbest_solutions will be set to be pso_population_size'
-            )
-            self.pso_n_nonbest_solutions = self.pso_population_size
 
         if self.graph_func is None:
             self.graph_func = lambda X: gf.nearest_nbr_graph(
@@ -163,6 +145,9 @@ class FEALM():
                 'S1': gd._shared_neighbor_sim(G, k=self.n_neighbors),
                 'sig1': gd._lsd_trace_signature(G)
             }
+
+        if self.optimizer is None:
+            self.optimizer = AdaptiveNelderMead()
 
     def _gen_comp_dist(self, Gs, graph_dissim):
 
@@ -258,34 +243,13 @@ class FEALM():
 
         for i in range(self.n_repeats):
             print(f'{i+1}th repeat')
-            # max_cost_evaluations = self.pso_population_size * self.pso_n_iterations
-            max_time = self.pso_max_time
-            n_jobs = self.pso_n_jobs
-            population_size = self.pso_population_size
-            single_evaluation_max_time = self.single_evaluation_max_time
-            # optimizer = ParticleSwarm(
-            #     max_time=self.pso_max_time,
-            #     max_cost_evaluations=max_cost_evaluations,
-            #     population_size=population_size,
-            #     n_jobs=self.pso_n_jobs)
-            # multiple_answers = True
-
-            # Note: When involving Grasmann, we cannot use NelderMead
-            max_cost_evaluations = self.pso_n_iterations
-            optimizer = AdaptiveNelderMead(
-                max_cost_evaluations=max_cost_evaluations,
-                max_time=max_time,
-                n_jobs=n_jobs,
-                randopt_population_size=population_size,
-                single_evaluation_max_time=single_evaluation_max_time)
-            multiple_answers = False
 
             # use no_constraint when form is 'p_wMv'
             self.opt = Optimization(
                 graph_func=self.graph_func,
                 graph_dissim=self.graph_dissim,
                 graph_dissim_reduce_func=self.graph_dissim_reduce_func,
-                optimizer=optimizer,
+                optimizer=self.optimizer,
                 form=self.projection_form
                 if not self.projection_form in ['p_wMv', 'p_w'] else
                 'no_constraint')
@@ -293,35 +257,35 @@ class FEALM():
             self.opt = self.opt.fit(X,
                                     Gs=Gs_,
                                     n_components=self.n_components,
-                                    multiple_answers=multiple_answers,
                                     gd_preprocessed_data=gd_preprocessed_data,
                                     lasso_coeff=self.lasso_coeff,
-                                    ridge_coeff=self.ridge_coeff,
-                                    entropy_coeff=self.entropy_coeff)
+                                    ridge_coeff=self.ridge_coeff)
 
             new_Ps = []
-            if multiple_answers:
+            if self.opt.Ps is not None and self.n_nonbest_solutions > 0:
                 tmp_Ps = self.opt.Ps
 
-                # if self.pso_n_nonbest_solutions == 0:
-                #     new_Ps = []
-                # else:
+                if len(tmp_Ps) < self.n_nonbest_solutions:
+                    n_nonbest_solutions = len(tmp_Ps)
+                    print(
+                        'n_nonbest_solutions is larger than returned # of solutions.'
+                    )
 
-                if self.pso_nonbest_solution_selection == 'projection_dissim':
+                if self.nonbest_solution_selection == 'projection_dissim':
                     tmp_Ps = [self._consistent_signs(P) for P in tmp_Ps]
                     if not self.projection_form == 'w':
                         tmp_Ps = [self._consistent_scales(P) for P in tmp_Ps]
                         tmp_Ps = [self._consistent_order(P) for P in tmp_Ps]
 
-                    new_Ps = self._get_k_centers_of_Ps(
-                        tmp_Ps, self.pso_n_nonbest_solutions)
+                    new_Ps = self._get_k_centers_of_Ps(tmp_Ps,
+                                                       n_nonbest_solutions)
                 else:
-                    if not self.pso_nonbest_solution_selection == 'random':
+                    if not self.nonbest_solution_selection == 'random':
                         print(
-                            'indicated pso_nonbest_solution_selection is not supported and "random" is used.'
+                            'indicated nonbest_solution_selection is not supported and "random" is used.'
                         )
-                    indices = np.random.randint(
-                        len(tmp_Ps), size=self.pso_n_nonbest_solutions)
+                    indices = np.random.randint(len(tmp_Ps),
+                                                size=n_nonbest_solutions)
                     new_Ps = [tmp_Ps[idx] for idx in indices]
 
             # append the best (duplication might happen)

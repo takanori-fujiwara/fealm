@@ -2,11 +2,6 @@ import time
 import numpy as np
 import pandas as pd
 
-import fealm.graph_func as gf
-import fealm.graph_dissim as gd
-from fealm.fealm import FEALM
-from umap import UMAP
-
 if __name__ == '__main__':
     k = 15  # UMAP's default
     m = 10
@@ -15,9 +10,12 @@ if __name__ == '__main__':
     n_repeats = 1000  # e.g., 100 = 1000 populations for 10 cores
     to_data_name = lambda n: f'./data/document_vec_n{n}_m{m}.npy'
 
+    from umap import UMAP
     umap = UMAP(n_components=2, n_neighbors=k)
-
     f_dr = umap.fit_transform
+
+    import fealm.graph_func as gf
+    import fealm.graph_dissim as gd
 
     f_gr = lambda X: gf.nearest_nbr_graph(X, n_neighbors=k)
 
@@ -36,18 +34,20 @@ if __name__ == '__main__':
     d_snc = lambda G1, G2, S1, sig1: gd.snc_dissim(
         G1, G2, S1=S1, n_iter=200, walk_ratio=0.4)
 
+    # latest ver of UMAP and hdbscan have some bugs and cannot run f_dr and d_snc properly
     f_names_and_fs = {
-        'f_dr': f_dr,
+        # 'f_dr': f_dr,
         'f_gr': f_gr,
         'd_nd': d_nd,
         'd_sd': d_sd,
         'd_nsd': d_nsd,
-        'd_snc': d_snc
+        # 'd_snc': d_snc
     }
 
     result = []
     for n in ns:
         for f_name in f_names_and_fs:
+            print(f'n{n} {f_name}')
             f = f_names_and_fs[f_name]
             X = np.load(to_data_name(n))
             kwargs = {'X': X}
@@ -77,16 +77,20 @@ if __name__ == '__main__':
     m_prime = 2
     n_jobs = 4
 
+    from fealm.fealm import FEALM
+    from fealm.optimizer import AdaptiveNelderMead
+
+    # set min_gradient_norm = 0 to avoid stopping by the convergence
+    optimizer = AdaptiveNelderMead(max_cost_evaluations=n_repeats,
+                                   n_jobs=n_jobs,
+                                   min_gradient_norm=0)
     for n in ns:
         X = np.load(to_data_name(n))
         fealm = FEALM(n_neighbors=k,
                       projection_form='no_constraint',
                       n_components=m_prime,
                       n_repeats=1,
-                      pso_population_size=None,
-                      pso_n_nonbest_solutions=0,
-                      pso_n_iterations=n_repeats,
-                      pso_n_jobs=n_jobs)
+                      optimizer=optimizer)
 
         s = time.time()
         fealm = fealm.fit(X)

@@ -7,9 +7,9 @@ import fealm.graph_dissim as gd
 import fealm.plot as fplot
 
 if __name__ == '__main__':
-    ### choose dataset # TODO: test non-scaling one
-    target_dataset = 'two_spheres_with_three_class_attr'  # Dataset 2
-    # target_dataset = 'two_spheres_with_three_class_attr_disturbance'  # Dataset3
+    ### choose dataset
+    # target_dataset = 'two_spheres_with_three_class_attr'  # Dataset 2
+    target_dataset = 'two_spheres_with_three_class_attr_disturbance'  # Dataset3
 
     ### choose d_Gr
     graph_dissim_measure = 'nsd'
@@ -32,10 +32,6 @@ if __name__ == '__main__':
         projection_form = 'w'
         n_components = None
         n_repeats = 20
-        pso_n_nonbest_solutions = 1
-        pso_population_size = None
-        pso_n_iterations = 1000
-        pso_n_jobs = -1
         lasso_coeff = -100
         ridge_coeff = 0
     elif target_dataset == 'two_spheres_with_three_class_attr_disturbance':
@@ -43,10 +39,6 @@ if __name__ == '__main__':
         projection_form = 'p_wMv'
         n_components = 3
         n_repeats = 20
-        pso_n_nonbest_solutions = 1
-        pso_population_size = None
-        pso_n_iterations = 2000
-        pso_n_jobs = -1
         lasso_coeff = 50
         ridge_coeff = -50
 
@@ -68,18 +60,12 @@ if __name__ == '__main__':
                   n_repeats=n_repeats,
                   projection_form=projection_form,
                   n_components=n_components,
-                  pso_n_nonbest_solutions=pso_n_nonbest_solutions,
-                  pso_population_size=pso_population_size,
-                  pso_n_iterations=pso_n_iterations,
-                  pso_n_jobs=pso_n_jobs,
                   graph_dissim=graph_dissim,
                   lasso_coeff=lasso_coeff,
                   ridge_coeff=ridge_coeff)
 
     fealm = fealm.fit(X)
     Ps = fealm.Ps
-    best_P_indices = fealm.best_P_indices
-    print('fitting is done')
 
     P0 = np.diag([1] * X.shape[1])
     repr_Ps_info = fealm.find_representative_Ps(

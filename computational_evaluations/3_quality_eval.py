@@ -6,13 +6,14 @@ import pandas as pd
 import fealm.graph_func as gf
 import fealm.graph_dissim as gd
 from fealm.fealm import FEALM
+from fealm.optimizer import AdaptiveNelderMead
 
 if __name__ == '__main__':
     k = 15
     n = 800
     ms = [5, 10, 20]
     m_prime = 2
-    n_iters = [100, 200, 400, 800, 1200, 1600, 2000]
+    n_evaluations = [100, 200, 400, 800, 1200, 1600, 2000]
     # randopt_population_size = None  # default is 10p + 1
     to_randopt_population_sizes = [
         lambda m, m_prime: (m * m_prime) + 1, lambda m, m_prime:
@@ -20,7 +21,7 @@ if __name__ == '__main__':
     ]
     randopt_population_size_types = ['(p+1)', '(10p+1)', '(20p+1)']
 
-    opt_n_iter = 5000  # optimal answer
+    opt_n_eval = 5000  # optimal answer
     to_opt_randopt_population_size = lambda m, m_prime: (
         m * m_prime) * 50 + 1  # optimal answer
     n_jobs = -1
@@ -31,32 +32,37 @@ if __name__ == '__main__':
 
     csv_path = './result/3_quality_eval.csv'
 
-    # file = open(csv_path, 'w')
-    # file.write(
-    #     'form,m,n_iter,trial,opt_val,randopt_population_size,randopt_population_size_type\n'
-    # )
-    # file.close()
+    file = open(csv_path, 'w')
+    file.write(
+        'form,m,n_eval,trial,opt_val,randopt_population_size,randopt_population_size_type\n'
+    )
+    file.close()
 
     for randopt_population_size_type, to_randopt_population_size in zip(
             randopt_population_size_types, to_randopt_population_sizes):
         for m in ms:
             X = np.load(to_data_name(n, m))
-            for n_iter in n_iters:
-                print(n_iter)
-                # to avoid producing random solutions over n_iter
+            for n_eval in n_evaluations:
+                print(n_eval)
+                # to avoid producing random solutions over n_eval
                 randopt_population_size = to_randopt_population_size(
                     m, m_prime)
-                if randopt_population_size > n_iter:
-                    randopt_population_size = n_iter
+                if randopt_population_size > n_eval:
+                    randopt_population_size = n_eval
                 print('======', randopt_population_size)
+
+                # set min_gradient_norm = 0 to avoid stopping by the convergence
+                optimizer = AdaptiveNelderMead(
+                    max_cost_evaluations=n_eval,
+                    n_jobs=n_jobs,
+                    randopt_population_size=randopt_population_size,
+                    min_gradient_norm=0)
+
                 fealm = FEALM(n_neighbors=k,
                               projection_form=form,
                               n_components=m_prime,
                               n_repeats=1,
-                              pso_population_size=randopt_population_size,
-                              pso_n_nonbest_solutions=0,
-                              pso_n_iterations=n_iter,
-                              pso_n_jobs=n_jobs)
+                              optimizer=optimizer)
 
                 for trial in range(n_repeats):
                     fealm = fealm.fit(X)
@@ -73,11 +79,11 @@ if __name__ == '__main__':
 
                     file = open(csv_path, 'a')
                     file.write(
-                        f'{form},{m},{n_iter},{trial},{val},{randopt_population_size},{randopt_population_size_type}\n'
+                        f'{form},{m},{n_eval},{trial},{val},{randopt_population_size},{randopt_population_size_type}\n'
                     )
                     file.close()
 
-                print(f'{form} {m} {n_iter} done')
+                print(f'{form} {m} {n_eval} done')
                 print()
 
     # optimal solutions
@@ -86,14 +92,18 @@ if __name__ == '__main__':
         # generate psuedo optimal solutions
         opt_randopt_population_size = to_opt_randopt_population_size(
             m, m_prime)
+
+        optimizer = AdaptiveNelderMead(
+            max_cost_evaluations=opt_n_eval,
+            n_jobs=n_jobs,
+            randopt_population_size=opt_randopt_population_size,
+            min_gradient_norm=0,
+            max_time=10800)
+
         fealm_optimal = FEALM(n_neighbors=k,
                               n_components=m_prime,
                               n_repeats=1,
-                              pso_max_time=10800,
-                              pso_n_iterations=opt_n_iter,
-                              pso_population_size=opt_randopt_population_size,
-                              pso_n_nonbest_solutions=0,
-                              pso_n_jobs=n_jobs)
+                              optimizer=optimizer)
 
         for trial in range(n_repeats):
             fealm_optimal = fealm_optimal.fit(X)
@@ -110,21 +120,21 @@ if __name__ == '__main__':
 
             file = open(csv_path, 'a')
             file.write(
-                f'{form},{m},{opt_n_iter},{trial},{opt_val},{opt_randopt_population_size},(50p+1)\n'
+                f'{form},{m},{opt_n_eval},{trial},{opt_val},{opt_randopt_population_size},(50p+1)\n'
             )
             file.close()
     # baseline solutions
     for m in ms:
         X = np.load(to_data_name(n, m))
-        # generate psuedo optimal solutions
+
+        # same result with random selection of solution
+        optimizer = AdaptiveNelderMead(max_cost_evaluations=1,
+                                       randopt_population_size=1)
+
         fealm_optimal = FEALM(n_neighbors=k,
                               n_components=m_prime,
                               n_repeats=1,
-                              pso_max_time=10800,
-                              pso_n_iterations=1,
-                              pso_population_size=1,
-                              pso_n_nonbest_solutions=0,
-                              pso_n_jobs=n_jobs)
+                              optimizer=optimizer)
 
         for trial in range(n_repeats):
             fealm_optimal = fealm_optimal.fit(X)
@@ -152,7 +162,7 @@ if __name__ == '__main__':
     ms = [5, 10, 20]
     df = pd.read_csv(csv_path)
     df_mean = df.groupby(
-        ['form', 'm', 'n_iter', 'randopt_population_size_type'],
+        ['form', 'm', 'n_eval', 'randopt_population_size_type'],
         as_index=False).mean()
 
     df_mean['quality'] = df_mean['opt_val']
@@ -160,23 +170,23 @@ if __name__ == '__main__':
     for m in ms:
         optimal = float(
             df_mean[(df_mean['m'] == m)
-                    & (df_mean['n_iter'] == opt_n_iter)]['opt_val'])
+                    & (df_mean['n_eval'] == opt_n_eval)]['opt_val'])
         # baseline = 0
         baseline = float(df_mean[(df_mean['m'] == m)
-                                 & (df_mean['n_iter'] == 1)]['opt_val'])
+                                 & (df_mean['n_eval'] == 1)]['opt_val'])
         df_mean.iloc[df_mean['m'] == m, df_mean.columns ==
                      'quality'] = (df_mean['quality'][df_mean['m'] == m] -
                                    baseline) / (optimal - baseline)
 
     # exclude some of results, to simplify the figure
-    df_mean = df_mean[df_mean['n_iter'] != 1]
-    df_mean = df_mean[df_mean['n_iter'] != opt_n_iter]
+    df_mean = df_mean[df_mean['n_eval'] != 1]
+    df_mean = df_mean[df_mean['n_eval'] != opt_n_eval]
 
     data = pd.DataFrame({
         'm':
         df_mean['m'],
         '# of Evaluations':
-        df_mean['n_iter'],
+        df_mean['n_eval'],
         '# of Initial Solutions':
         df_mean['randopt_population_size_type'],
         'Relative Accuracy':
@@ -184,7 +194,7 @@ if __name__ == '__main__':
         'Log m':
         np.log(df_mean['m']),
         'Log # of Iterations':
-        np.log(df_mean['n_iter'])
+        np.log(df_mean['n_eval'])
     })
 
     newcolors = [[228, 26, 28], [77, 175, 74], [55, 126, 184]]
@@ -225,7 +235,7 @@ if __name__ == '__main__':
     df['quality'] = df['opt_val']
 
     df_mean = df.groupby(
-        ['form', 'm', 'n_iter', 'randopt_population_size_type'],
+        ['form', 'm', 'n_eval', 'randopt_population_size_type'],
         as_index=False).mean()
 
     df_mean['quality'] = df_mean['opt_val']
@@ -233,27 +243,27 @@ if __name__ == '__main__':
     for m in ms:
         optimal = float(
             df_mean[(df_mean['m'] == m)
-                    & (df_mean['n_iter'] == opt_n_iter)]['opt_val'])
+                    & (df_mean['n_eval'] == opt_n_eval)]['opt_val'])
         # baseline = 0
         baseline = float(df_mean[(df_mean['m'] == m)
-                                 & (df_mean['n_iter'] == 1)]['opt_val'])
+                                 & (df_mean['n_eval'] == 1)]['opt_val'])
         df.iloc[df['m'] == m,
                 df.columns == 'quality'] = (df['quality'][df['m'] == m] -
                                             baseline) / (optimal - baseline)
 
     df_std = df.groupby(
-        ['form', 'm', 'n_iter', 'randopt_population_size_type'],
+        ['form', 'm', 'n_eval', 'randopt_population_size_type'],
         as_index=False).std()
 
     # exclude some of results, to simplify the figure
-    df_std = df_std[df_std['n_iter'] != opt_n_iter]
-    df_std = df_std[df_std['n_iter'] != 1]
+    df_std = df_std[df_std['n_eval'] != opt_n_eval]
+    df_std = df_std[df_std['n_eval'] != 1]
 
     data = pd.DataFrame({
         'm':
         df_std['m'],
         '# of Evaluations':
-        df_std['n_iter'],
+        df_std['n_eval'],
         '# of Initial Solutions':
         df_mean['randopt_population_size_type'],
         'SD of Relative Accuracy':

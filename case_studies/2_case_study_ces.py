@@ -182,45 +182,42 @@ if __name__ == '__main__':
     plt.show()
 
     from fealm.fealm import FEALM
+    from fealm.optimizer import AdaptiveNelderMead
 
     forms_to_settings = {
         'w': {
             'n_repeats': 10,
             'n_components': None,
-            'pso_population_size': None,
-            'pso_n_nonbest_solutions': 0,
-            'pso_n_iterations': 1000,
+            'max_cost_evaluations': 2000,
             'lasso_coeff': -300,
             'ridge_coeff': 0
         },
         'p_wMv': {
             'n_repeats': 5,
             'n_components': 3,
-            'pso_population_size': None,
-            'pso_n_nonbest_solutions': 0,
-            'pso_n_iterations': 1000,
+            'max_cost_evaluations': 4000,
             'lasso_coeff': 100,
             'ridge_coeff': 0
         }
     }
-    pso_n_jobs = -1
-    pso_max_time = 10800
+    n_jobs = -1
+    max_time = 10800
 
     Ps = []
     for form in forms_to_settings:
-        fealm = FEALM(
-            n_neighbors=n_neighbors,
-            projection_form=form,
-            pso_n_jobs=pso_n_jobs,
-            n_components=forms_to_settings[form]['n_components'],
-            n_repeats=forms_to_settings[form]['n_repeats'],
-            pso_n_iterations=forms_to_settings[form]['pso_n_iterations'],
-            pso_population_size=forms_to_settings[form]['pso_population_size'],
-            pso_n_nonbest_solutions=forms_to_settings[form]
-            ['pso_n_nonbest_solutions'],
-            pso_max_time=pso_max_time,
-            lasso_coeff=forms_to_settings[form]['lasso_coeff'],
-            ridge_coeff=forms_to_settings[form]['ridge_coeff'])
+        optimizer = AdaptiveNelderMead(
+            max_cost_evaluations=forms_to_settings[form]
+            ['max_cost_evaluations'],
+            max_time=max_time,
+            n_jobs=n_jobs)
+
+        fealm = FEALM(n_neighbors=n_neighbors,
+                      projection_form=form,
+                      n_components=forms_to_settings[form]['n_components'],
+                      n_repeats=forms_to_settings[form]['n_repeats'],
+                      optimizer=optimizer,
+                      lasso_coeff=forms_to_settings[form]['lasso_coeff'],
+                      ridge_coeff=forms_to_settings[form]['ridge_coeff'])
         fealm = fealm.fit(X)
         Ps += fealm.Ps
 

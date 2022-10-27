@@ -11,8 +11,8 @@ from pymanopt.manifolds import Grassmann
 from pymanopt.manifolds.oblique import Oblique
 from pymanopt.manifolds.euclidean import Euclidean
 
-from pymanopt.optimizers.particle_swarm import ParticleSwarm
 from pymanopt.optimizers.steepest_descent import SteepestDescent
+from fealm.optimizer import AdaptiveNelderMead
 
 
 class ModifiedEuclidean(Euclidean):
@@ -63,17 +63,39 @@ class ModifiedOblique(Oblique):
 
 
 class Optimization():
+    '''
+    Args:
+    ----------
+    graph_func: graph generation function
+    graph_dissim: graph dissimilarity calculation function
+    graph_dissim_reduce_func: graph dissimilarity reduce function, optional (default: np.min)
+    optimizer: optimizer to use, optional (default: AdaptiveNelderMead())
+    form: {'w', 'M', 'wM', 'Mv', 'wMv', 'p_wMv', 'no_constraint'}
+        The projection matrix form/constraint used for optimization. Sselect
+        Note: the pseudo Karcher mean of Grasmann is not implemented yet
+        and cannot be used (Adaptive)NelderMead for constraints involving
+        the Grasmann manifold (i.e., M, wM, Mv, wMv). Use 'p_wMv' (pseudo wMv), instead.
+        (https://www.cis.upenn.edu/~cis5150/Diffgeom-Grassmann.Absil.pdf).
+        - 'w': only feature scaling (w in the paper)
+        - 'p_wMv': feature scaling and transformation (wMv in the paper).
+          Note: When 'wMv', optmization is over the union of Sphere, Grasmann,
+          and Sphere manifolds. But, when, 'p_wMv' (psuedo wMv) performs
+          optimization over Oblique manifold to provide more flexibility
+          during the optimization; then the projection matrix will be fitted to
+          the constraint of wMv.
+        - 'no_constraint': apply no constraint when computing projection matrix P.
+    n_trials_for_mat_decomp: int, optional, (default: 5)
+        Only used when form='p_wMv'. When 'p_wMv', decompose an obtained
+        projection matrix into the form of w, M, v.
+    '''
 
     def __init__(self,
                  graph_func,
                  graph_dissim,
                  graph_dissim_reduce_func=np.min,
-                 optimizer=ParticleSwarm(),
+                 optimizer=AdaptiveNelderMead(),
                  form='no_constraint',
                  n_trials_for_mat_decomp=5):
-        '''
-        form: {'w', 'M', 'wM', 'Mv', 'wMv', 'no_constraint'}
-        '''
         self.graph_func = graph_func
         self.graph_dissim = graph_dissim
         self.graph_dissim_reduce_func = graph_dissim_reduce_func
@@ -119,26 +141,13 @@ class Optimization():
     def _regularization_penalty(self, P, lasso_coeff=0, ridge_coeff=0):
         l1_sum = 0
         l2_sum = 0
-        entropy_sum = 0
-
         if lasso_coeff != 0:
             l1_sum = np.abs(P).sum(axis=0).sum()
-
         # here l2 reg is applied to compare each column of P
         if ridge_coeff != 0:
             l2_sum = np.sqrt((P**2).sum(axis=1)).sum()
 
-        # here entropy reg is applied to compare each column of P
-        if entropy_coeff != 0:
-            # make every number positive
-            P_ = (P - P.min(axis=0)) / (P.max(axis=0) -
-                                        P.min(axis=0)) + np.finfo(float).eps
-            entropy_sum = -(P_ * np.log(P_)).sum(axis=1).sum()
-
-        # print(lasso_coeff * l1_sum, ridge_coeff * l2_sum,
-        #       entropy_coeff * entropy_sum)
-
-        return lasso_coeff * l1_sum + ridge_coeff * l2_sum + entropy_coeff * entropy_sum
+        return lasso_coeff * l1_sum + ridge_coeff * l2_sum
 
     def _eval_cost(self,
                    X,
@@ -146,7 +155,6 @@ class Optimization():
                    Gs,
                    lasso_coeff=0,
                    ridge_coeff=0,
-                   entropy_coeff=0,
                    gd_params={},
                    gd_preprocessed_data=None):
         new_G = self._construct_graph(X, P)
@@ -157,10 +165,7 @@ class Optimization():
             gd_params=gd_params,
             gd_preprocessed_data=gd_preprocessed_data)
         regularization_penalty = self._regularization_penalty(
-            P,
-            lasso_coeff=lasso_coeff,
-            ridge_coeff=ridge_coeff,
-            entropy_coeff=entropy_coeff)
+            P, lasso_coeff=lasso_coeff, ridge_coeff=ridge_coeff)
 
         dissim_with_penalty = dissim - regularization_penalty
         # print(dissim, regularization_penalty, dissim_with_penalty)
@@ -177,11 +182,10 @@ class Optimization():
                        Gs,
                        lasso_coeff=0,
                        ridge_coeff=0,
-                       entropy_coeff=0,
                        gd_params={},
                        gd_preprocessed_data=None):
         '''
-        form: w, M, wM, Mv, wMv, no_constraint
+        form: w, M, wM, Mv, wMv, p_wMv or no_constraint
         '''
         vec_len = np.sqrt(X.shape[1])
 
@@ -196,7 +200,6 @@ class Optimization():
                     Gs=Gs,
                     lasso_coeff=lasso_coeff,
                     ridge_coeff=ridge_coeff,
-                    entropy_coeff=entropy_coeff,
                     gd_params=gd_params,
                     gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'M':
@@ -209,7 +212,6 @@ class Optimization():
                     Gs=Gs,
                     lasso_coeff=lasso_coeff,
                     ridge_coeff=ridge_coeff,
-                    entropy_coeff=entropy_coeff,
                     gd_params=gd_params,
                     gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'wM':
@@ -222,7 +224,6 @@ class Optimization():
                     Gs=Gs,
                     lasso_coeff=lasso_coeff,
                     ridge_coeff=ridge_coeff,
-                    entropy_coeff=entropy_coeff,
                     gd_params=gd_params,
                     gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'Mv':
@@ -235,7 +236,6 @@ class Optimization():
                     Gs=Gs,
                     lasso_coeff=lasso_coeff,
                     ridge_coeff=ridge_coeff,
-                    entropy_coeff=entropy_coeff,
                     gd_params=gd_params,
                     gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'wMv':
@@ -249,7 +249,6 @@ class Optimization():
                     Gs=Gs,
                     lasso_coeff=lasso_coeff,
                     ridge_coeff=ridge_coeff,
-                    entropy_coeff=entropy_coeff,
                     gd_params=gd_params,
                     gd_preprocessed_data=gd_preprocessed_data)
         elif form == 'no_constraint':
@@ -262,7 +261,6 @@ class Optimization():
                     Gs=Gs,
                     lasso_coeff=lasso_coeff,
                     ridge_coeff=ridge_coeff,
-                    entropy_coeff=entropy_coeff,
                     gd_params=gd_params,
                     gd_preprocessed_data=gd_preprocessed_data)
 
@@ -348,6 +346,23 @@ class Optimization():
         return _cost_func
 
     def mat_decomp(self, P, form='wMv'):
+        '''
+        Parameters
+        -------
+        P: array-like, shape(n_attributes, n_latent_features)
+            A projection matrix to be decomposed.
+        form: string, optional (default: 'wMv')
+            The form P will be decomposed to.
+            Currently, only 'wMv' is supported. 
+        Returns
+        -------
+        w: array-like, shape(n_attributes,)
+            A vector for data scaling.
+        M: array-like, shape(n_attributes, n_latent_features)
+            A matrix for orthogonal projection.
+        v: array-like, shape(n_latent_features,)
+            A vector for scaling columns of M
+        '''
         manifold_vec1 = ModifiedEuclidean((P.shape[0], ))
         manifold_vec2 = ModifiedEuclidean((P.shape[1], ))
         manifold_orth = Stiefel(P.shape[0], P.shape[1])
@@ -381,10 +396,31 @@ class Optimization():
             n_components=None,
             lasso_coeff=0,
             ridge_coeff=0,
-            entropy_coeff=0,
-            multiple_answers=False,
             gd_params={},
             gd_preprocessed_data=None):
+        """Perform feature learning on input data.
+
+        Parameters
+        ----------
+        X: array-like, shape(n_samples, n_attributes)
+            Target data.
+        Gs: list of graphs, optional, (default=[])
+            Already produced graphs that will be referred when producing a new
+            graph (if existed). A set of graphs, Gi, in the paper.
+        n_components: int, optional, (default=None)
+            Number of components to take if generating linear transformations
+            (e.g., "wMv" in the above paper). m' in the paper. This is not needed to
+            be indicated if only applying feature scaling ("w" in the above paper).
+        lasso_coeff: float, optional, (default=0)
+            Coefficient for Lasso/L1-penalty. \lambda_1 in the paper.
+        ridge_coeff: float, optional, (default=0)
+            Coefficient for Ridge/L2-penalty. \lambda_2 in the paper.
+        gd_params: parameters used for graph dissimlarity calculation.
+        gd_preprocessed_data: preprocessed dissimilarities to speed up computations.
+        Returns
+        -------
+        self.
+        """
         n_attrs = X.shape[1]
         if n_components == None and not self.form == 'w':
             self.form = 'w'
@@ -400,27 +436,17 @@ class Optimization():
             Gs=Gs,
             lasso_coeff=lasso_coeff,
             ridge_coeff=ridge_coeff,
-            entropy_coeff=entropy_coeff,
             gd_params=gd_params,
             gd_preprocessed_data=gd_preprocessed_data)
         self.problem = pymanopt.Problem(manifold=manifold, cost=cost_func)
 
-        best, answers = (None, None)
-        if multiple_answers:
-            best, answers = self.optimizer.run(self.problem,
-                                               multiple_answers=True).point
-        else:
-            best = self.optimizer.run(self.problem).point
-
-        self.w, self.M, self.v = self._to_wMv(form=self.form,
-                                              answer=best,
-                                              n_attrs=n_attrs,
-                                              n_components=n_components)
-        self.P = np.diag(self.w) @ self.M @ np.diag(self.v)
-
-        if not answers == None:
+        answer = self.optimizer.run(self.problem).point
+        if isinstance(answer, tuple):
+            # when returning non-best solutions as well
+            best = answer[0]
+            non_bests = answer[1]
             self.ws, self.Ms, self.vs, self.Ps = ([], [], [], [])
-            for ans in answers:
+            for ans in non_bests:
                 w, M, v = self._to_wMv(form=self.form,
                                        answer=ans,
                                        n_attrs=n_attrs,
@@ -429,5 +455,14 @@ class Optimization():
                 self.Ms.append(M)
                 self.vs.append(v)
                 self.Ps.append(np.diag(w) @ M @ np.diag(v))
+        else:
+            # when returning only best answer
+            best = answer
+
+        self.w, self.M, self.v = self._to_wMv(form=self.form,
+                                              answer=best,
+                                              n_attrs=n_attrs,
+                                              n_components=n_components)
+        self.P = np.diag(self.w) @ self.M @ np.diag(self.v)
 
         return self

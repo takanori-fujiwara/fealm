@@ -3,7 +3,7 @@
 #
 # NelderMead is enhanced by
 # - adding random search for initial solutions,
-# - employing the adaptive Nelder-Mead for the parameter selection,
+# - employing the adaptive Nelder-Mead for the parameter selection [Gao & Han, 2012]
 # - applying multiprocessing using Pathos
 #
 # ParticleSwarm is enhanced by:
@@ -18,8 +18,6 @@ import functools
 
 import numpy as np
 import numpy.random as rnd
-
-from pymanopt.optimizers.optimizer import Optimizer
 
 # faster but memory leak can happen
 from pathos.multiprocessing import ProcessPool as Pool
@@ -45,27 +43,50 @@ class AdaptiveNelderMead(Optimizer):
     algorithm.
 
     Args:
-        max_cost_evaluations: Maximum number of allowed cost function
-            evaluations.
-        max_iterations: Maximum number of allowed iterations.
-        reflection: Determines how far to reflect away from the worst vertex:
+        max_cost_evaluations: int, optional (default: None)
+            Maximum number of allowed cost function evaluations.
+            When None, max(1000, 2 * manifold.dim)
+        max_iterations: int, optional (default: None)
+            Maximum number of allowed iterations.
+            When None, max(2000, 4 * manifold.dim)
+        single_evaluation_max_time: float, optional (default: None)
+            Maximum time allowed for single evaluation. Can be used to avoid
+            stacking of the evaluation in some reason (e.g., failure of EVD)
+            When None, max_time of the optimizer (e.g., 3600).
+        reflection: float, optional (default: None)
+            Determines how far to reflect away from the worst vertex:
             stretched (reflection > 1), compressed (0 < reflection < 1),
             or exact (reflection = 1).
-        expansion: Factor by which to expand the reflected simplex.
-        contraction: Factor by which to contract the reflected simplex.
+            When None, adaptively set based on manifold.dim [Gao & Han, 2012]
+        expansion: float, optional (default: None)
+            Factor by which to expand the reflected simplex.
+            When None, adaptively set based on manifold.dim [Gao & Han, 2012]
+        contraction: float, optional (default: None)
+            Factor by which to contract the reflected simplex.
+            When None, adaptively set based on manifold.dim [Gao & Han, 2012]
+        shrink: float, optional (default: None)
+            Factor by which to shrink the reflected simplex.
+            When None, adaptively set based on manifold.dim [Gao & Han, 2012]
+        randopt_population_size: int, optional (default: None)
+            # of random initial solutions.
+            When None, 10 * manifold.dim + 1.
+        n_jobs: int, optional (default: -1)
+            # of processors used for the optimization.
+            When -1, use all available processors.
+        other parameters: See pymanopt.optimizers.optimizer.Optimizer (https://pymanopt.org/docs/stable/optimizers.html)
     """
 
     def __init__(
         self,
         max_cost_evaluations=None,
         max_iterations=None,
+        single_evaluation_max_time=None,
         reflection=None,
         expansion=None,
         contraction=None,
         shrink=None,
         randopt_population_size=None,
         n_jobs=-1,
-        single_evaluation_max_time=None,
         *args,
         **kwargs,
     ):
@@ -79,7 +100,7 @@ class AdaptiveNelderMead(Optimizer):
         self._shrink = shrink
         self._n_jobs = n_jobs
         self._randopt_population_size = randopt_population_size
-        self.single_evaluation_max_time = single_evaluation_max_time
+        self._single_evaluation_max_time = single_evaluation_max_time
 
     def compute_euclid_centroid(self, manifold, points):
         return functools.reduce(lambda a, b: a + b, points) / len(points)
@@ -91,10 +112,10 @@ class AdaptiveNelderMead(Optimizer):
         else:
             compute_centroid_ = compute_centroid
 
-        if self.single_evaluation_max_time is None:
-            self.single_evaluation_max_time = self.max_time
+        if self._single_evaluation_max_time is None:
+            self._single_evaluation_max_time = self._max_time
 
-        @func_set_timeout(self.single_evaluation_max_time)
+        @func_set_timeout(self._single_evaluation_max_time)
         def cost(x):
             return problem.cost(x)
 
@@ -315,6 +336,9 @@ class ParticleSwarm(Optimizer):
     """Particle swarm optimization (PSO) method.
     Perform optimization using the derivative-free particle swarm optimization
     algorithm.
+    This version of PSO can
+     - use multiprocessing
+     - return non-best solutions
     Args:
         max_cost_evaluations: Maximum number of allowed cost evaluations.
         max_iterations: Maximum number of allowed iterations.
@@ -331,6 +355,7 @@ class ParticleSwarm(Optimizer):
         nostalgia=1.4,
         social=1.4,
         n_jobs=-1,
+        return_nonbest_answers=False,
         *args,
         **kwargs,
     ):
@@ -342,8 +367,9 @@ class ParticleSwarm(Optimizer):
         self._nostalgia = nostalgia
         self._social = social
         self._n_jobs = n_jobs
+        self._return_nonbest_answers = return_nonbest_answers
 
-    def run(self, problem, x=None, multiple_answers=False):
+    def run(self, problem, x=None):
         """Run PSO algorithm.
         Args:
             problem: Pymanopt problem class instance exposing the cost function
@@ -473,15 +499,16 @@ class ParticleSwarm(Optimizer):
                     y[i] = x[i]
                     # Update global best if necessary.
                     if fy[i] < fbest:
-                        fbest = fy[i]
-                        xbest = x[i]
+                        imin = i
+                        fbest = fy[imin]
+                        xbest = x[imin]
 
             # Compute new position of particle i.
             x = [man.retraction(xi, vi) for xi, vi in zip(x, v)]
 
             cost_evaluations += self._population_size
 
-        if multiple_answers:
+        if self._return_nonbest_answers:
             point = (xbest, x)
         else:
             point = xbest
