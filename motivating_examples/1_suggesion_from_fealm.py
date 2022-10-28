@@ -40,7 +40,7 @@ if __name__ == '__main__':
         n_components = 3
         n_repeats = 20
         lasso_coeff = 50
-        ridge_coeff = -50
+        ridge_coeff = -100
 
     n_neighbors = 15
     min_dist = 0.1
