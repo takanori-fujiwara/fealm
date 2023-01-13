@@ -1,4 +1,4 @@
-## Feature Learning for Dimensionality Reduction toward Maximal Extraction of Hidden Patterns
+## Feature Learning for Nonlinear Dimensionality Reduction toward Maximal Extraction of Hidden Patterns
 
 Content
 -----
@@ -7,8 +7,6 @@ Content
 * computational_evaluations: Scripts used for Computational Evaluations.
 * case_studies: Scripts related to Case Studies.
 
-<!-- * Note: The UI is available in this repository: https://github.com/takanori-fujiwara/fealm-ui -->
-
 ******
 
 Setup
@@ -16,7 +14,7 @@ Setup
 
 ### Requirements
 * Python3 (latest)
-* Note: Tested on macOS Big Sur and Windows 10.
+* Note: Tested on macOS Ventura and Windows 10.
 
 ### Setup
 
@@ -33,9 +31,13 @@ Setup
     `python3 -m pip install matplotlib sklearn`
 
 ### Usage
-* Examples can be found in "sample.py" and "case_studies"
-* API documentation can be found in "fealm/fealm.py" (WIP)
+* Examples can be found in "sample.py" and "case_studies".
+* API documentation can be found in "fealm/fealm.py".
 
-* Currently, due to the conflict between UMAP and Pathos libraries, a specific loading order of modules is required (see sample.py). Also, SnC might not work due to the latest hdbscan library's problem for Python 3.10 environment.
+* Currently, due to the conflict between UMAP and Pathos libraries, a specific loading order of modules is required (see sample.py).
 
 ******
+
+### How to cite
+T. Fujiwara, Y.-H. Kuo, A. Ynnerman, and K.-L. Ma, "Feature Learning for Nonlinear Dimensionality Reduction toward Maximal Extraction of Hidden Patterns." arXiv:2206.13891
+https://arxiv.org/abs/2206.13891

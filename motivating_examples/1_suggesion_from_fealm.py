@@ -26,6 +26,7 @@ if __name__ == '__main__':
     plt.show()
 
     from fealm.fealm import FEALM
+    from fealm.optimizer import AdaptiveNelderMead
 
     if target_dataset == 'two_spheres_with_three_class_attr':
         beta = 1
@@ -38,7 +39,7 @@ if __name__ == '__main__':
         beta = 1
         projection_form = 'p_wMv'
         n_components = 3
-        n_repeats = 20
+        n_repeats = 40
         lasso_coeff = 50
         ridge_coeff = -100
 
@@ -56,13 +57,15 @@ if __name__ == '__main__':
         graph_dissim = lambda G1, G2, S1=None, sig1=None: gd.snn_dissim(
             G1, G2, S1=S1, fixed_degree=n_neighbors)
 
+    optimizer = AdaptiveNelderMead(max_cost_evaluations=5000)
     fealm = FEALM(n_neighbors=n_neighbors,
                   n_repeats=n_repeats,
                   projection_form=projection_form,
                   n_components=n_components,
                   graph_dissim=graph_dissim,
                   lasso_coeff=lasso_coeff,
-                  ridge_coeff=ridge_coeff)
+                  ridge_coeff=ridge_coeff,
+                  optimizer=optimizer)
 
     fealm = fealm.fit(X)
     Ps = fealm.Ps

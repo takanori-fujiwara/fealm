@@ -7,7 +7,7 @@ if __name__ == '__main__':
     m = 10
     q = 50
     ns = [50, 100, 200, 400, 800, 1200, 1600, 2000, 2400, 2800, 3200]
-    n_repeats = 1000  # e.g., 100 = 1000 populations for 10 cores
+    n_repeats = 1000
     to_data_name = lambda n: f'./data/document_vec_n{n}_m{m}.npy'
 
     from umap import UMAP
@@ -34,14 +34,13 @@ if __name__ == '__main__':
     d_snc = lambda G1, G2, S1, sig1: gd.snc_dissim(
         G1, G2, S1=S1, n_iter=200, walk_ratio=0.4)
 
-    # latest ver of UMAP and hdbscan have some bugs and cannot run f_dr and d_snc properly
     f_names_and_fs = {
-        # 'f_dr': f_dr,
+        'f_dr': f_dr,
         'f_gr': f_gr,
         'd_nd': d_nd,
         'd_sd': d_sd,
         'd_nsd': d_nsd,
-        # 'd_snc': d_snc
+        'd_snc': d_snc
     }
 
     result = []

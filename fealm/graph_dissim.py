@@ -588,7 +588,7 @@ def _extract_cluster(G, S, n_walks):
 
 
 def _dbscan(D, indices):
-    import hdbscan  # TODO: this version of the package is problematic now
+    import hdbscan
     related_D = (D[indices].T)[indices]
     np.fill_diagonal(related_D, 0)
 

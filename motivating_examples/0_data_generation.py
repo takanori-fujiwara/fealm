@@ -94,12 +94,13 @@ if __name__ == '__main__':
     two_spheres_with_additional_attrs = np.hstack((two_spheres, adding_attrs))
 
     ### Dataset3
+    ratio = 0.2
     two_spheres_with_add_attrs_distrub = np.zeros((n_samples, 4))
     disturb = scale(adding_attrs[:, 0])
     two_spheres_with_add_attrs_distrub[:, 0] = two_spheres[:, 0]
     two_spheres_with_add_attrs_distrub[:, 1] = two_spheres[:, 1]
     two_spheres_with_add_attrs_distrub[:,
-                                       2] = two_spheres[:, 2] + 0.2 * disturb
+                                       2] = two_spheres[:, 2] + ratio * disturb
     two_spheres_with_add_attrs_distrub[:, 3] = disturb
 
     X1 = scale(two_spheres)
