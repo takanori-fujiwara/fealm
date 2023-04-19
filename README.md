@@ -2,7 +2,7 @@
 
 About
 -----
-* The implementation of FEALM, FEALM-UMAP, and NSD from: Feature Learning for Nonlinear Dimensionality Reduction toward Maximal Extraction of Hidden Patterns. Takanori Fujiwara, Yun-Hsin Kuo, Anders Ynnerman, and Kwan-Liu Ma. In Proc. PacificVis 2023 (forthcoming). [arXiv Preprint](https://arxiv.org/abs/2206.13891))
+* The implementation of FEALM, FEALM-UMAP, and NSD from: Feature Learning for Nonlinear Dimensionality Reduction toward Maximal Extraction of Hidden Patterns. Takanori Fujiwara, Yun-Hsin Kuo, Anders Ynnerman, and Kwan-Liu Ma. In Proc. PacificVis, 2023. [arXiv Preprint](https://arxiv.org/abs/2206.13891))
 
 * Demonstration video: https://takanori-fujiwara.github.io/s/fealm/index.html
 
@@ -32,22 +32,34 @@ Setup
 -----
 
 ### Requirements
-* Python3 (latest)
+* Python3.10 (Python3.11 is not supported due to the implementation issues in `umap`)
 * Note: Tested on macOS Ventura and Windows 10.
 
 ### Setup
-
 * Install FEALM
 
   * Download/Clone this repository
 
   * Move to the downloaded repository, then:
 
-    `python3 -m pip install .`
+    `python3.10 -m pip install .`
+
+  * Install `umap` manually to handle `umap`'s issue:
+
+    * Download the `umap`'s repository from https://github.com/lmcinnes/umap
+
+    * Edit umap/\_\_init\_\_.py in the downloaded reposistory as follows:
+
+      * Comment out or remove Line 7 (`from .parametric_umap import ParametricUMAP`) to avoid loading ParametricUMAP
+
+    * Move to the downloaded umap repository and run the below command to install the edited umap:
+
+      `python3.10 -m pip install .`
+
 
 * You can test with sample.py. To run, sample.py you need to install additonal packages.
 
-    `python3 -m pip install matplotlib sklearn`
+    `python3.10 -m pip install matplotlib sklearn`
 
 ### Usage
 * Examples can be found in "sample.py" and "case_studies".
