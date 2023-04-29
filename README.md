@@ -44,19 +44,6 @@ Setup
 
     `python3.10 -m pip install .`
 
-  * Install `umap` manually to handle `umap`'s issue:
-
-    * Download the `umap`'s repository from https://github.com/lmcinnes/umap
-
-    * Edit umap/\_\_init\_\_.py in the downloaded reposistory as follows:
-
-      * Comment out or remove Line 7 (`from .parametric_umap import ParametricUMAP`) to avoid loading ParametricUMAP
-
-    * Move to the downloaded umap repository and run the below command to install the edited umap:
-
-      `python3.10 -m pip install .`
-
-
 * You can test with sample.py. To run, sample.py you need to install additonal packages.
 
     `python3.10 -m pip install matplotlib sklearn`
@@ -70,5 +57,5 @@ Setup
 ******
 
 ### How to cite
-T. Fujiwara, Y.-H. Kuo, A. Ynnerman, and K.-L. Ma, "Feature Learning for Nonlinear Dimensionality Reduction toward Maximal Extraction of Hidden Patterns." In Proc. PacificVis 2023, forthcoming.
+T. Fujiwara, Y.-H. Kuo, A. Ynnerman, and K.-L. Ma, "Feature Learning for Nonlinear Dimensionality Reduction toward Maximal Extraction of Hidden Patterns." In Proc. PacificVis, 2023.
 (https://arxiv.org/abs/2206.13891)
