@@ -32,8 +32,8 @@ Setup
 -----
 
 ### Requirements
-* Python3.10 (Python3.11 is not supported due to the implementation issues in `umap`)
-* Note: Tested on macOS Ventura and Windows 10.
+* Python3
+* Note: Tested on macOS Ventura, Ubuntu 22.0.4 LTS, and Windows 10.
 
 ### Setup
 * Install FEALM
@@ -42,11 +42,11 @@ Setup
 
   * Move to the downloaded repository, then:
 
-    `python3.10 -m pip install .`
+    `pip3 install .`
 
 * You can test with sample.py. To run, sample.py you need to install additonal packages.
 
-    `python3.10 -m pip install matplotlib sklearn`
+    `pip3 install matplotlib scikit-learn`
 
 ### Usage
 * Examples can be found in "sample.py" and "case_studies".
