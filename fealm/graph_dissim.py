@@ -36,27 +36,30 @@ def updown_linear_approx(eigvals_lower, eigvals_upper, nv):
     nau = len(eigvals_upper)
     if nv < nal + nau:
         raise ValueError(
-            'Number of supplied eigenvalues ({0} lower and {1} upper) is higher than number of nodes ({2})!'
-            .format(nal, nau, nv))
+            "Number of supplied eigenvalues ({0} lower and {1} upper) is higher than number of nodes ({2})!".format(
+                nal, nau, nv
+            )
+        )
     ret = np.zeros(nv)
     ret[:nal] = eigvals_lower
     ret[-nau:] = eigvals_upper
-    ret[nal - 1:-nau + 1] = np.linspace(eigvals_lower[-1], eigvals_upper[0],
-                                        nv - nal - nau + 2)
+    ret[nal - 1 : -nau + 1] = np.linspace(
+        eigvals_lower[-1], eigvals_upper[0], nv - nal - nau + 2
+    )
 
     return ret
 
 
-def eigenvalues_auto(X, n_eivals='auto', eigsh_tol=0, eigsh_v0=None):
+def eigenvalues_auto(X, n_eivals="auto", eigsh_tol=0, eigsh_v0=None):
     do_full = True
     n_lower = 150
     n_upper = 150
     nv = X.shape[0]
 
-    if n_eivals == 'auto':
+    if n_eivals == "auto":
         if X.shape[0] > 1024:
             do_full = False
-    if n_eivals == 'full':
+    if n_eivals == "full":
         do_full = True
     if isinstance(n_eivals, int):
         n_lower = n_upper = n_eivals
@@ -73,37 +76,42 @@ def eigenvalues_auto(X, n_eivals='auto', eigsh_tol=0, eigsh_v0=None):
     if issparse(X):
         if n_lower == n_upper:
             try:
-                tr_eivals = eigsh(X,
-                                  2 * n_lower,
-                                  which='BE',
-                                  return_eigenvectors=False,
-                                  tol=eigsh_tol,
-                                  v0=eigsh_v0)
+                tr_eivals = eigsh(
+                    X,
+                    2 * n_lower,
+                    which="BE",
+                    return_eigenvectors=False,
+                    tol=eigsh_tol,
+                    v0=eigsh_v0,
+                )
             except ArpackNoConvergence as err:
                 # this will get partially converged eigenvalues
                 tr_eivals = err.eigenvalues
 
-            return updown_linear_approx(tr_eivals[:n_upper],
-                                        tr_eivals[n_upper:], nv)
+            return updown_linear_approx(tr_eivals[:n_upper], tr_eivals[n_upper:], nv)
         else:
             try:
-                lo_eivals = eigsh(X,
-                                  n_lower,
-                                  which='SM',
-                                  return_eigenvectors=False,
-                                  tol=eigsh_tol,
-                                  v0=eigsh_v0)[::-1]
+                lo_eivals = eigsh(
+                    X,
+                    n_lower,
+                    which="SM",
+                    return_eigenvectors=False,
+                    tol=eigsh_tol,
+                    v0=eigsh_v0,
+                )[::-1]
             except ArpackNoConvergence as err:
                 # this will get partially converged eigenvalues
                 lo_eivals = err.eigenvalues
 
             try:
-                up_eivals = eigsh(X,
-                                  n_upper,
-                                  which='LM',
-                                  return_eigenvectors=False,
-                                  tol=eigsh_tol,
-                                  v0=eigsh_v0)
+                up_eivals = eigsh(
+                    X,
+                    n_upper,
+                    which="LM",
+                    return_eigenvectors=False,
+                    tol=eigsh_tol,
+                    v0=eigsh_v0,
+                )
             except ArpackNoConvergence as err:
                 # this will get partially converged eigenvalues
                 up_eivals = err.eigenvalues
@@ -191,33 +199,38 @@ def _communicability_delta(G, n_eigvals=10, beta=1, from_networkx_graph=False):
     return C
 
 
-def communicability_dissim(G1,
-                           G2,
-                           comm_G1=None,
-                           comm_G2=None,
-                           method='delta',
-                           measure='l2',
-                           n_eigvals=5,
-                           from_networkx_graphs=False):
-    '''
+def communicability_dissim(
+    G1,
+    G2,
+    comm_G1=None,
+    comm_G2=None,
+    method="delta",
+    measure="l2",
+    n_eigvals=5,
+    from_networkx_graphs=False,
+):
+    """
     This version is more than 5x faster than nd.CommunicabilityJSD().dist
     when using method='exp' and measure='jsd'
 
     method: 'normal', 'exp', 'delta'
     measure: 'jsd', 'hausdorff', 'l2'
-    '''
+    """
     comm_G1 = None
     comm_G2 = None
     communicability_func = None
-    if method == 'normal':
+    if method == "normal":
         communicability_func = lambda G: _communicability(
-            G, n_eigvals=n_eigvals, from_networkx_graph=from_networkx_graphs)
-    elif method == 'exp':
+            G, n_eigvals=n_eigvals, from_networkx_graph=from_networkx_graphs
+        )
+    elif method == "exp":
         communicability_func = lambda G: _communicability_exp(
-            G, from_networkx_graph=from_networkx_graphs)
-    elif method == 'delta':
+            G, from_networkx_graph=from_networkx_graphs
+        )
+    elif method == "delta":
         communicability_func = lambda G: _communicability_delta(
-            G, n_eigvals=n_eigvals, from_networkx_graph=from_networkx_graphs)
+            G, n_eigvals=n_eigvals, from_networkx_graph=from_networkx_graphs
+        )
 
     if comm_G1 is None:
         comm_G1 = communicability_func(G1)
@@ -225,7 +238,7 @@ def communicability_dissim(G1,
         comm_G2 = communicability_func(G2)
 
     dissim = None
-    if measure == 'jsd':
+    if measure == "jsd":
         lil_sigma1 = np.triu(comm_G1).flatten()
         lil_sigma2 = np.triu(comm_G2).flatten()
 
@@ -237,12 +250,13 @@ def communicability_dissim(G1,
         P2 = np.sort(lil_sigma2 / big_sigma2)
 
         dissim = _js_divergence(P1, P2)
-    elif measure == 'hausdorff':
+    elif measure == "hausdorff":
         dissim = max(
             directed_hausdorff(comm_G1, comm_G2)[0],
-            directed_hausdorff(comm_G2, comm_G1)[0])
-    elif measure == 'l2':
-        dissim = np.sqrt(np.sum((comm_G1 - comm_G2)**2))
+            directed_hausdorff(comm_G2, comm_G1)[0],
+        )
+    elif measure == "l2":
+        dissim = np.sqrt(np.sum((comm_G1 - comm_G2) ** 2))
 
     return dissim
 
@@ -268,7 +282,7 @@ def _normalized_laplacian_matrix(A):
     D, diags = _degree_matrix(A, return_diags=True)
     L = D - A
 
-    with sp.errstate(divide="ignore"):
+    with np.errstate(divide="ignore"):
         diags_sqrt = 1.0 / np.sqrt(diags)
     diags_sqrt[np.isinf(diags_sqrt)] = 0
 
@@ -279,13 +293,15 @@ def _normalized_laplacian_matrix(A):
     return L
 
 
-def _lsd_trace_signature(G,
-                         normalization=None,
-                         timescales=np.logspace(-2, 2, 256),
-                         n_eigvals=10,
-                         from_networkx_graph=False,
-                         eigsh_tol=0,
-                         eigsh_v0=None):
+def _lsd_trace_signature(
+    G,
+    normalization=None,
+    timescales=np.logspace(-2, 2, 256),
+    n_eigvals=10,
+    from_networkx_graph=False,
+    eigsh_tol=0,
+    eigsh_v0=None,
+):
     if from_networkx_graph:
         nodelist = list(G)
         G_ = nx.to_scipy_sparse_matrix(G, nodelist)
@@ -297,35 +313,32 @@ def _lsd_trace_signature(G,
     # Note: this is O(n_nodes * n_nodes * n_eigvals)
     # also netlsd library used n_eivals instead of n_eigvals (probably typo)
     # TDOO: maybe we should set tol for this (speed depends on random vec v0)
-    w = eigenvalues_auto(L,
-                         n_eivals=n_eigvals,
-                         eigsh_tol=eigsh_tol,
-                         eigsh_v0=eigsh_v0)
+    w = eigenvalues_auto(L, n_eivals=n_eigvals, eigsh_tol=eigsh_tol, eigsh_v0=eigsh_v0)
 
-    signature = np.sum(np.exp(-timescales[:, np.newaxis] @ w[:, np.newaxis].T),
-                       axis=1)
+    signature = np.sum(np.exp(-timescales[:, np.newaxis] @ w[:, np.newaxis].T), axis=1)
 
     # normalization
-    if normalization == 'empty':
+    if normalization == "empty":
         signature = signature / L.shape[0]
-    elif normalization == 'complete':
+    elif normalization == "complete":
         n = L.shape[0]
-        signature = signature / (1 + (n - 1) * np.exp(-(1 + 1 /
-                                                        (n - 1)) * timescales))
+        signature = signature / (1 + (n - 1) * np.exp(-(1 + 1 / (n - 1)) * timescales))
     return signature
 
 
-def netlsd(G1,
-           G2,
-           sig1=None,
-           sig2=None,
-           normalization=None,
-           timescales=np.logspace(-2, 2, 256),
-           n_eigvals='auto',
-           from_networkx_graphs=False,
-           eigsh_tol=0,
-           eigsh_v0=None):
-    '''
+def netlsd(
+    G1,
+    G2,
+    sig1=None,
+    sig2=None,
+    normalization=None,
+    timescales=np.logspace(-2, 2, 256),
+    n_eigvals="auto",
+    from_networkx_graphs=False,
+    eigsh_tol=0,
+    eigsh_v0=None,
+):
+    """
     This version is currently about 20x faster than nd.NetLSD().dist
     when using from_networkx_graphs=False. When from_networkx_graphs=True, still
     8x faster than nd.NetLSD().dist.
@@ -342,38 +355,45 @@ def netlsd(G1,
         If int, compute n_eigvals eigenvalues from each side and approximate using linear growth approximation.
         If tuple, we expect two ints, first for lower part of approximation, and second for the upper part.
     eigsh_tol, eigsh_v0: eigsh's option used for eigenvalue-based approximation (check SciPy's eigsh).
-    '''
-    if n_eigvals == 'auto':
+    """
+    if n_eigvals == "auto":
         if (G1.shape[0] + G2.shape[0]) / 2 > 50:
             n_eigvals = (25, 25)
         else:
-            n_eigvals = 'full'
+            n_eigvals = "full"
 
     if sig1 is None:
-        sig1 = _lsd_trace_signature(G1,
-                                    normalization=normalization,
-                                    timescales=timescales,
-                                    n_eigvals=n_eigvals,
-                                    from_networkx_graph=from_networkx_graphs,
-                                    eigsh_tol=eigsh_tol,
-                                    eigsh_v0=eigsh_v0)
+        sig1 = _lsd_trace_signature(
+            G1,
+            normalization=normalization,
+            timescales=timescales,
+            n_eigvals=n_eigvals,
+            from_networkx_graph=from_networkx_graphs,
+            eigsh_tol=eigsh_tol,
+            eigsh_v0=eigsh_v0,
+        )
     if sig2 is None:
-        sig2 = _lsd_trace_signature(G2,
-                                    normalization=normalization,
-                                    timescales=timescales,
-                                    n_eigvals=n_eigvals,
-                                    from_networkx_graph=from_networkx_graphs,
-                                    eigsh_tol=eigsh_tol,
-                                    eigsh_v0=eigsh_v0)
+        sig2 = _lsd_trace_signature(
+            G2,
+            normalization=normalization,
+            timescales=timescales,
+            n_eigvals=n_eigvals,
+            from_networkx_graph=from_networkx_graphs,
+            eigsh_tol=eigsh_tol,
+            eigsh_v0=eigsh_v0,
+        )
 
     return np.linalg.norm(sig1 - sig2)
 
 
-def _lsd_diag_signature(G,
-                        timescales=np.logspace(-2, 2, 64),
-                        from_networkx_graph=False):
-    L = nx.normalized_laplacian_matrix(G).toarray(
-    ) if from_networkx_graph else _normalized_laplacian_matrix(G).toarray()
+def _lsd_diag_signature(
+    G, timescales=np.logspace(-2, 2, 64), from_networkx_graph=False
+):
+    L = (
+        nx.normalized_laplacian_matrix(G).toarray()
+        if from_networkx_graph
+        else _normalized_laplacian_matrix(G).toarray()
+    )
 
     w, V = eigh(L)
 
@@ -385,19 +405,18 @@ def _lsd_diag_signature(G,
     return signature
 
 
-def netlsd_with_node_correspondence(G1,
-                                    G2,
-                                    timescales=np.logspace(-2, 2, 64),
-                                    from_networkx_graphs=False):
+def netlsd_with_node_correspondence(
+    G1, G2, timescales=np.logspace(-2, 2, 64), from_networkx_graphs=False
+):
 
-    sig1 = _lsd_diag_signature(G1,
-                               timescales=timescales,
-                               from_networkx_graph=from_networkx_graphs)
-    sig2 = _lsd_diag_signature(G2,
-                               timescales=timescales,
-                               from_networkx_graph=from_networkx_graphs)
+    sig1 = _lsd_diag_signature(
+        G1, timescales=timescales, from_networkx_graph=from_networkx_graphs
+    )
+    sig2 = _lsd_diag_signature(
+        G2, timescales=timescales, from_networkx_graph=from_networkx_graphs
+    )
 
-    return np.sum((sig1 - sig2)**2)
+    return np.sum((sig1 - sig2) ** 2)
 
 
 def _process_deltacon(G, from_networkx_graph):
@@ -446,12 +465,7 @@ def _process_approx_deltacon(G, S0, from_networkx_graph):
     return S
 
 
-def approx_deltacon(G1,
-                    G2,
-                    S1=None,
-                    S2=None,
-                    n_groups=10,
-                    from_networkx_graphs=False):
+def approx_deltacon(G1, G2, S1=None, S2=None, n_groups=10, from_networkx_graphs=False):
     # prepare S0
     S0 = None
     if S1 is None or S2 is None:
@@ -464,13 +478,13 @@ def approx_deltacon(G1,
             S0[group, k] = 1
 
     if S1 is None:
-        S1 = _process_approx_deltacon(G1,
-                                      S0=S0,
-                                      from_networkx_graph=from_networkx_graphs)
+        S1 = _process_approx_deltacon(
+            G1, S0=S0, from_networkx_graph=from_networkx_graphs
+        )
     if S2 is None:
-        S2 = _process_approx_deltacon(G2,
-                                      S0=S0,
-                                      from_networkx_graph=from_networkx_graphs)
+        S2 = _process_approx_deltacon(
+            G2, S0=S0, from_networkx_graph=from_networkx_graphs
+        )
 
     return np.sqrt(np.sum(np.square(np.sqrt(S1) - np.sqrt(S2))))
 
@@ -483,7 +497,7 @@ def frobenius(G1, G2, from_networkx_graphs=False):
         A1 = G1.toarray()
         A2 = G2.toarray()
 
-    return np.sqrt(np.sum((A1 - A2)**2))
+    return np.sqrt(np.sum((A1 - A2) ** 2))
 
 
 def jaccard_dist(G1, G2, from_networkx_graphs=False):
@@ -499,14 +513,16 @@ def jaccard_dist(G1, G2, from_networkx_graphs=False):
     return 1 - cap / cup
 
 
-def _shared_neighbor_sim(G,
-                         k=None,
-                         ratio_to_k=True,
-                         zero_diagonal=True,
-                         normalize_by_max=False,
-                         n_hops=1,
-                         symmetrize=False,
-                         from_networkx_graph=False):
+def _shared_neighbor_sim(
+    G,
+    k=None,
+    ratio_to_k=True,
+    zero_diagonal=True,
+    normalize_by_max=False,
+    n_hops=1,
+    symmetrize=False,
+    from_networkx_graph=False,
+):
     if from_networkx_graph:
         A = nx.to_numpy_array(G)
     else:
@@ -589,17 +605,20 @@ def _extract_cluster(G, S, n_walks):
 
 def _dbscan(D, indices):
     import hdbscan
+
     related_D = (D[indices].T)[indices]
     np.fill_diagonal(related_D, 0)
 
-    clust = hdbscan.HDBSCAN(metric="precomputed",
-                            allow_single_cluster=True).fit(related_D)
+    clust = hdbscan.HDBSCAN(metric="precomputed", allow_single_cluster=True).fit(
+        related_D
+    )
 
     return clust.labels_
 
 
-def _snc_measure_iter(G_src, S_src, S_target, D_target, max_val, min_val,
-                      n_walks, alpha):
+def _snc_measure_iter(
+    G_src, S_src, S_target, D_target, max_val, min_val, n_walks, alpha
+):
     src_space_clust_indices = _extract_cluster(G_src, S_src, n_walks)
 
     # TODO: this doesn't make sense especially when using kmeans
@@ -639,16 +658,18 @@ def _snc_measure_iter(G_src, S_src, S_target, D_target, max_val, min_val,
     return part_distort_sum, part_weight_sum
 
 
-def _snc_measure(G_src,
-                 S_src,
-                 S_target,
-                 D_target,
-                 max_val,
-                 min_val,
-                 n_iter,
-                 n_walks,
-                 alpha,
-                 from_networkx_graph=False):
+def _snc_measure(
+    G_src,
+    S_src,
+    S_target,
+    D_target,
+    max_val,
+    min_val,
+    n_iter,
+    n_walks,
+    alpha,
+    from_networkx_graph=False,
+):
     if from_networkx_graph:
         G_src_ = csr_matrix(nx.to_numpy_array(G).tocsr())
     else:
@@ -665,7 +686,8 @@ def _snc_measure(G_src,
             max_val=max_val,
             min_val=min_val,
             n_walks=n_walks,
-            alpha=alpha)
+            alpha=alpha,
+        )
         distort_sum += part_distort_sum
         weight_sum += part_weight_sum
 
@@ -676,29 +698,31 @@ def _snc_measure(G_src,
 
 
 ### Matrix computation version of SnC implementation
-def snc(G1,
-        G2,
-        S1=None,
-        S2=None,
-        D1=None,
-        D2=None,
-        n_iter=None,
-        alpha=0.1,
-        walk_ratio=0.4,
-        from_networkx_graphs=False):
+def snc(
+    G1,
+    G2,
+    S1=None,
+    S2=None,
+    D1=None,
+    D2=None,
+    n_iter=None,
+    alpha=0.1,
+    walk_ratio=0.4,
+    from_networkx_graphs=False,
+):
 
     n = G1.shape[0]
 
     # Make this faster to allow S1, S2 precomputed
     # compute snn matrix
     if S1 is None:
-        S1 = _shared_neighbor_sim(G1,
-                                  normalize_by_max=True,
-                                  from_networkx_graph=from_networkx_graphs)
+        S1 = _shared_neighbor_sim(
+            G1, normalize_by_max=True, from_networkx_graph=from_networkx_graphs
+        )
     if S2 is None:
-        S2 = _shared_neighbor_sim(G2,
-                                  normalize_by_max=True,
-                                  from_networkx_graph=from_networkx_graphs)
+        S2 = _shared_neighbor_sim(
+            G2, normalize_by_max=True, from_networkx_graph=from_networkx_graphs
+        )
 
     # convert snn matrix to dist matrix
     if D1 is None:
@@ -719,85 +743,99 @@ def snc(G1,
     n_walks = int(n * walk_ratio)
 
     # steadiness
-    steadiness = _snc_measure(G_src=G2,
-                              S_src=S2,
-                              S_target=S1,
-                              D_target=D1,
-                              max_val=max_compress,
-                              min_val=min_compress,
-                              n_iter=n_iter,
-                              n_walks=n_walks,
-                              alpha=alpha,
-                              from_networkx_graph=from_networkx_graphs)
+    steadiness = _snc_measure(
+        G_src=G2,
+        S_src=S2,
+        S_target=S1,
+        D_target=D1,
+        max_val=max_compress,
+        min_val=min_compress,
+        n_iter=n_iter,
+        n_walks=n_walks,
+        alpha=alpha,
+        from_networkx_graph=from_networkx_graphs,
+    )
     # cohesiveness
-    cohesiveness = _snc_measure(G_src=G1,
-                                S_src=S1,
-                                S_target=S2,
-                                D_target=D2,
-                                max_val=max_stretch,
-                                min_val=min_stretch,
-                                n_iter=n_iter,
-                                n_walks=n_walks,
-                                alpha=alpha,
-                                from_networkx_graph=from_networkx_graphs)
+    cohesiveness = _snc_measure(
+        G_src=G1,
+        S_src=S1,
+        S_target=S2,
+        D_target=D2,
+        max_val=max_stretch,
+        min_val=min_stretch,
+        n_iter=n_iter,
+        n_walks=n_walks,
+        alpha=alpha,
+        from_networkx_graph=from_networkx_graphs,
+    )
 
     return steadiness, cohesiveness
 
 
-def snc_dissim(G1,
-               G2,
-               S1=None,
-               S2=None,
-               D1=None,
-               D2=None,
-               n_iter=None,
-               alpha=0.1,
-               walk_ratio=0.4,
-               snc_score_aggregation=np.min,
-               from_networkx_graphs=False):
+def snc_dissim(
+    G1,
+    G2,
+    S1=None,
+    S2=None,
+    D1=None,
+    D2=None,
+    n_iter=None,
+    alpha=0.1,
+    walk_ratio=0.4,
+    snc_score_aggregation=np.min,
+    from_networkx_graphs=False,
+):
     # NOTE: SnC is  unstable because of its random walk
     # also, DBSCAN is only applied to a subset of noded (i.e., visited nodes)
     # (should find a better dissimilarity measure)
-    s, c = snc(G1,
-               G2,
-               S1=S1,
-               S2=S2,
-               D1=D1,
-               D2=D2,
-               n_iter=n_iter,
-               alpha=alpha,
-               walk_ratio=walk_ratio,
-               from_networkx_graphs=from_networkx_graphs)
+    s, c = snc(
+        G1,
+        G2,
+        S1=S1,
+        S2=S2,
+        D1=D1,
+        D2=D2,
+        n_iter=n_iter,
+        alpha=alpha,
+        walk_ratio=walk_ratio,
+        from_networkx_graphs=from_networkx_graphs,
+    )
 
     return 1 - snc_score_aggregation([s, c])
 
 
-def snn_dissim(G1,
-               G2,
-               S1=None,
-               S2=None,
-               method='default',
-               fixed_degree=None,
-               n_hops=1,
-               symmetrize=True,
-               from_networkx_graphs=False):
+def snn_dissim(
+    G1,
+    G2,
+    S1=None,
+    S2=None,
+    method="default",
+    fixed_degree=None,
+    n_hops=1,
+    symmetrize=True,
+    from_networkx_graphs=False,
+):
     if S1 is None:
-        S1 = _shared_neighbor_sim(G1,
-                                  k=fixed_degree,
-                                  n_hops=n_hops,
-                                  symmetrize=symmetrize,
-                                  from_networkx_graph=from_networkx_graphs)
+        S1 = _shared_neighbor_sim(
+            G1,
+            k=fixed_degree,
+            n_hops=n_hops,
+            symmetrize=symmetrize,
+            from_networkx_graph=from_networkx_graphs,
+        )
     if S2 is None:
-        S2 = _shared_neighbor_sim(G2,
-                                  k=fixed_degree,
-                                  n_hops=n_hops,
-                                  symmetrize=symmetrize,
-                                  from_networkx_graph=from_networkx_graphs)
+        S2 = _shared_neighbor_sim(
+            G2,
+            k=fixed_degree,
+            n_hops=n_hops,
+            symmetrize=symmetrize,
+            from_networkx_graph=from_networkx_graphs,
+        )
 
     dissim = None
-    if method == 'l2':
-        dissim = np.sqrt(np.sum((S1 - S2)**2))
-    elif method == 'default':
+    if method == "l2":
+        dissim = np.sqrt(np.sum((S1 - S2) ** 2))
+    elif method == "default":
         D = S1 - S2
         D_plus = D[D > 0]
         D_minus = D[D < 0]
@@ -808,41 +846,47 @@ def snn_dissim(G1,
     return dissim
 
 
-def nsd(G1,
-        G2,
-        beta=1,
-        fixed_degree=None,
-        S1=None,
-        S2=None,
-        sig1=None,
-        sig2=None,
-        snn_nhops=1,
-        snn_symmetrize=False,
-        lsd_normalization=None,
-        lsd_timescales=np.logspace(-2, 2, 256),
-        lsd_n_eigvals='auto',
-        take_log_for_lsd=True,
-        from_networkx_graphs=False):
-    '''
+def nsd(
+    G1,
+    G2,
+    beta=1,
+    fixed_degree=None,
+    S1=None,
+    S2=None,
+    sig1=None,
+    sig2=None,
+    snn_nhops=1,
+    snn_symmetrize=False,
+    lsd_normalization=None,
+    lsd_timescales=np.logspace(-2, 2, 256),
+    lsd_n_eigvals="auto",
+    take_log_for_lsd=True,
+    from_networkx_graphs=False,
+):
+    """
     Neighbor & Shape Dissimilaity (NSD):
-    '''
-    snn_dissim_val = snn_dissim(G1,
-                                G2,
-                                S1=S1,
-                                S2=S2,
-                                method='default',
-                                fixed_degree=fixed_degree,
-                                n_hops=snn_nhops,
-                                symmetrize=snn_symmetrize,
-                                from_networkx_graphs=from_networkx_graphs)
-    netlsd_dissim_val = netlsd(G1,
-                               G2,
-                               sig1=sig1,
-                               sig2=sig2,
-                               normalization=lsd_normalization,
-                               timescales=lsd_timescales,
-                               n_eigvals=lsd_n_eigvals,
-                               from_networkx_graphs=from_networkx_graphs)
+    """
+    snn_dissim_val = snn_dissim(
+        G1,
+        G2,
+        S1=S1,
+        S2=S2,
+        method="default",
+        fixed_degree=fixed_degree,
+        n_hops=snn_nhops,
+        symmetrize=snn_symmetrize,
+        from_networkx_graphs=from_networkx_graphs,
+    )
+    netlsd_dissim_val = netlsd(
+        G1,
+        G2,
+        sig1=sig1,
+        sig2=sig2,
+        normalization=lsd_normalization,
+        timescales=lsd_timescales,
+        n_eigvals=lsd_n_eigvals,
+        from_networkx_graphs=from_networkx_graphs,
+    )
 
     # taking log because netlsd is following exponential difference
     if take_log_for_lsd:
@@ -865,8 +909,7 @@ dk_series = lambda G1, G2: nd.dkSeries().dist(G1, G2, d=2)
 #     G1, G2, normalization='complete', timescales=None)
 # normalization is not needed for comparison of the same size networks
 # netlsd = lambda G1, G2: _netlsd(G1, G2, normalization=None)
-onion_divergence = lambda G1, G2: nd.OnionDivergence().dist(
-    G1, G2, dist='lccm')
+onion_divergence = lambda G1, G2: nd.OnionDivergence().dist(G1, G2, dist="lccm")
 quantum_jsd = lambda G1, G2: nd.QuantumJSD().dist(G1, G2, beta=0.1, q=None)
 
 ####
@@ -874,13 +917,14 @@ quantum_jsd = lambda G1, G2: nd.QuantumJSD().dist(G1, G2, beta=0.1, q=None)
 ####
 degree_divergence = nd.DegreeDivergence().dist
 d_measure = lambda G1, G2: nd.DMeasure().dist(
-    G1, G2, w1=0.45, w2=0.45, w3=0.1, niter=50)
+    G1, G2, w1=0.45, w2=0.45, w3=0.1, niter=50
+)
 # d-measure doesn't work for nonconnected graph
 graph_diffusion = lambda G1, G2: nd.GraphDiffusion().dist(
-    G1, G2, thresh=1e-08, resolution=1000)
+    G1, G2, thresh=1e-08, resolution=1000
+)
 netsimile = nd.NetSimile().dist
-resistance_perturbation = lambda G1, G2: nd.ResistancePerturbation().dist(
-    G1, G2, p=2)
+resistance_perturbation = lambda G1, G2: nd.ResistancePerturbation().dist(G1, G2, p=2)
 # resistance_perturbation doesn't work for nonconnected graph
 
 ####
@@ -893,25 +937,30 @@ distributional_nbd = lambda G1, G2: nd.DistributionalNBD().dist(
     shave=True,
     keep_evals=True,
     k=None,
-    vector_distance='euclidean')
+    vector_distance="euclidean",
+)
 hamming = nd.Hamming().dist
 hamming_ipsen_mikhailov = lambda G1, G2: nd.HammingIpsenMikhailov().dist(
-    G1, G2, combination_factor=1)
+    G1, G2, combination_factor=1
+)
 ipsen_mikhailov = lambda G1, G2: nd.IpsenMikhailov().dist(G1, G2, hwhm=0.08)
 # jaccard_distance = nd.JaccardDistance().dist
 laplacian_spectral = lambda G1, G2: nd.LaplacianSpectral().dist(
     G1,
     G2,
     normed=True,
-    kernel='normal',
+    kernel="normal",
     hwhm=0.011775,
-    measure='jensen-shannon',
+    measure="jensen-shannon",
     k=None,
-    which='LM')
+    which="LM",
+)
 non_backtracking_spectral = lambda G1, G2: nd.NonBacktrackingSpectral().dist(
-    G1, G2, topk='automatic', ignore_negative_evals=True, batch=50, tol=1e-03)
+    G1, G2, topk="automatic", ignore_negative_evals=True, batch=50, tol=1e-03
+)
 polynomial_dissimilarity = lambda G1, G2: nd.PolynomialDissimilarity().dist(
-    G1, G2, k=5, alpha=1)
+    G1, G2, k=5, alpha=1
+)
 
 ####
 # Any
@@ -920,14 +969,12 @@ polynomial_dissimilarity = lambda G1, G2: nd.PolynomialDissimilarity().dist(
 # deltacon's exact=False is not supported by the library yet
 # frobenius = nd.Frobenius().dist
 portrait_divergence = lambda G1, G2: nd.PortraitDivergence().dist(
-    G1, G2, bins=5, binedges=None)
+    G1, G2, bins=5, binedges=None
+)
 # portrait_divergence is slow. Probably need to finda good bin size (in pecentile)
 
 
-def symmetric_hausdorff(G1,
-                        G2,
-                        normalization=False,
-                        from_networkx_graphs=False):
+def symmetric_hausdorff(G1, G2, normalization=False, from_networkx_graphs=False):
     A1 = nx.to_numpy_array(G1) if from_networkx_graphs else G1.toarray()
     A2 = nx.to_numpy_array(G2) if from_networkx_graphs else G2.toarray()
 
