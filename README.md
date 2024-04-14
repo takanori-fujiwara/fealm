@@ -32,7 +32,9 @@ Setup
 -----
 
 ### Requirements
-* Python3
+* Python3.11 
+  - pymanopt requires "scipy>=1.0,<1.10", which does not support Python3.12.
+
 * Note: Tested on macOS Ventura, Ubuntu 22.0.4 LTS, and Windows 10.
 
 ### Setup
@@ -44,9 +46,9 @@ Setup
 
     `pip3 install .`
 
-* You can test with sample.py. To run, sample.py you need to install additonal packages.
+* You can test with sample.py. To run, sample.py you need to install matplotlib.
 
-    `pip3 install matplotlib scikit-learn`
+    `pip3 install matplotlib`
 
 ### Usage
 * Examples can be found in "sample.py" and "case_studies".
