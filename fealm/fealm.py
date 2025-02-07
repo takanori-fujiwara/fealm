@@ -17,7 +17,7 @@ from fealm.optimizer import AdaptiveNelderMead
 from fealm.optimization import Optimization
 
 
-class FEALM():
+class FEALM:
     """FEALM. Feature learning framework for dimensionlity reduction methods.
     Implementation of the framework introduced in Fujiwara et al.,
     "Feature Learning for Dimensionality Reduction toward Maximal Extraction of
@@ -93,20 +93,22 @@ class FEALM():
     See "sample.py" or scripts in "case_studies" directory
     """
 
-    def __init__(self,
-                 n_neighbors=15,
-                 n_repeats=5,
-                 projection_form='w',
-                 n_components=None,
-                 graph_func=None,
-                 graph_dissim=None,
-                 graph_dissim_reduce_func=np.min,
-                 graph_dissim_preprocessing=None,
-                 optimizer=None,
-                 lasso_coeff=0,
-                 ridge_coeff=0,
-                 n_nonbest_solutions=0,
-                 nonbest_solution_selection='projection_dissim'):
+    def __init__(
+        self,
+        n_neighbors=15,
+        n_repeats=5,
+        projection_form="w",
+        n_components=None,
+        graph_func=None,
+        graph_dissim=None,
+        graph_dissim_reduce_func=np.min,
+        graph_dissim_preprocessing=None,
+        optimizer=None,
+        lasso_coeff=0,
+        ridge_coeff=0,
+        n_nonbest_solutions=0,
+        nonbest_solution_selection="projection_dissim",
+    ):
         self.n_neighbors = n_neighbors
         self.projection_form = projection_form
         self.n_components = n_components
@@ -127,27 +129,24 @@ class FEALM():
 
         if self.graph_func is None:
             self.graph_func = lambda X: gf.nearest_nbr_graph(
-                X, n_neighbors=self.n_neighbors, to_networx_graph=False)
+                X, n_neighbors=self.n_neighbors, to_networx_graph=False
+            )
 
         if self.graph_dissim is None:
             # Neighbor and Shape Dissimilarity (NSD)
             self.graph_dissim = lambda G1, G2, S1=None, sig1=None: gd.nsd(
-                G1,
-                G2,
-                S1=S1,
-                sig1=sig1,
-                fixed_degree=self.n_neighbors,
-                beta=1)
+                G1, G2, S1=S1, sig1=sig1, fixed_degree=self.n_neighbors, beta=1
+            )
             self.save_snn_lsdsig = True
 
         if self.graph_dissim_preprocessing is None:
             self.graph_dissim_preprocessing = lambda G: {
-                'S1': gd._shared_neighbor_sim(G, k=self.n_neighbors),
-                'sig1': gd._lsd_trace_signature(G)
+                "S1": gd._shared_neighbor_sim(G, k=self.n_neighbors),
+                "sig1": gd._lsd_trace_signature(G),
             }
 
         if self.optimizer is None:
-            self.optimizer = AdaptiveNelderMead()
+            self.optimizer = AdaptiveNelderMead(n_jobs=1)
 
     def _gen_comp_dist(self, Gs, graph_dissim):
 
@@ -158,7 +157,7 @@ class FEALM():
         return comp_dist
 
     def _frobenius(self, X1, X2):
-        return np.sqrt(np.sum((X1 - X2)**2))
+        return np.sqrt(np.sum((X1 - X2) ** 2))
 
     def _dist_comp_parallel(self, Xs, dist_func):
         # prepare index paris for multiprocessing
@@ -181,7 +180,7 @@ class FEALM():
 
     def _get_k_centers_of_Ps(self, Ps, k):
         D = self._dist_comp_parallel(Ps, dist_func=self._frobenius)
-        kmed = KMedoids(n_clusters=k, metric='precomputed').fit(D)
+        kmed = KMedoids(n_clusters=k, metric="precomputed").fit(D)
 
         return [Ps[idx] for idx in kmed.medoid_indices_]
 
@@ -242,7 +241,7 @@ class FEALM():
                 gd_preprocessed_data.append(self.graph_dissim_preprocessing(G))
 
         for i in range(self.n_repeats):
-            print(f'{i+1}th repeat')
+            print(f"{i+1}th repeat")
 
             # use no_constraint when form is 'p_wMv'
             self.opt = Optimization(
@@ -250,16 +249,21 @@ class FEALM():
                 graph_dissim=self.graph_dissim,
                 graph_dissim_reduce_func=self.graph_dissim_reduce_func,
                 optimizer=self.optimizer,
-                form=self.projection_form
-                if not self.projection_form in ['p_wMv', 'p_w'] else
-                'no_constraint')
+                form=(
+                    self.projection_form
+                    if not self.projection_form in ["p_wMv", "p_w"]
+                    else "no_constraint"
+                ),
+            )
 
-            self.opt = self.opt.fit(X,
-                                    Gs=Gs_,
-                                    n_components=self.n_components,
-                                    gd_preprocessed_data=gd_preprocessed_data,
-                                    lasso_coeff=self.lasso_coeff,
-                                    ridge_coeff=self.ridge_coeff)
+            self.opt = self.opt.fit(
+                X,
+                Gs=Gs_,
+                n_components=self.n_components,
+                gd_preprocessed_data=gd_preprocessed_data,
+                lasso_coeff=self.lasso_coeff,
+                ridge_coeff=self.ridge_coeff,
+            )
 
             new_Ps = []
             if self.opt.Ps is not None and self.n_nonbest_solutions > 0:
@@ -267,44 +271,41 @@ class FEALM():
 
                 if len(tmp_Ps) < self.n_nonbest_solutions:
                     n_nonbest_solutions = len(tmp_Ps)
-                    print(
-                        'n_nonbest_solutions is larger than returned # of solutions.'
-                    )
+                    print("n_nonbest_solutions is larger than returned # of solutions.")
 
-                if self.nonbest_solution_selection == 'projection_dissim':
+                if self.nonbest_solution_selection == "projection_dissim":
                     tmp_Ps = [self._consistent_signs(P) for P in tmp_Ps]
-                    if not self.projection_form == 'w':
+                    if not self.projection_form == "w":
                         tmp_Ps = [self._consistent_scales(P) for P in tmp_Ps]
                         tmp_Ps = [self._consistent_order(P) for P in tmp_Ps]
 
-                    new_Ps = self._get_k_centers_of_Ps(tmp_Ps,
-                                                       n_nonbest_solutions)
+                    new_Ps = self._get_k_centers_of_Ps(tmp_Ps, n_nonbest_solutions)
                 else:
-                    if not self.nonbest_solution_selection == 'random':
+                    if not self.nonbest_solution_selection == "random":
                         print(
                             'indicated nonbest_solution_selection is not supported and "random" is used.'
                         )
-                    indices = np.random.randint(len(tmp_Ps),
-                                                size=n_nonbest_solutions)
+                    indices = np.random.randint(len(tmp_Ps), size=n_nonbest_solutions)
                     new_Ps = [tmp_Ps[idx] for idx in indices]
 
             # append the best (duplication might happen)
             best_P = self._consistent_signs(self.opt.P)
-            if not self.projection_form == 'w':
+            if not self.projection_form == "w":
                 best_P = self._consistent_scales(best_P)
                 best_P = self._consistent_order(best_P)
             new_Ps.append(best_P)
 
-            if self.projection_form == 'p_wMv':
+            if self.projection_form == "p_wMv":
                 # restrict projection matrix being on wMv's manifold
                 for i, P in enumerate(new_Ps):
                     w, M, v = self.opt.mat_decomp(P)
                     new_Ps[i] = np.diag(w) @ M @ np.diag(v)
-            elif self.projection_form == 'p_w':
+            elif self.projection_form == "p_w":
                 # restrict projection matrix being on w's manifold
                 for i, P in enumerate(new_Ps):
-                    new_Ps[i] = np.sqrt(
-                        X.shape[1]) * new_Ps[i] / np.linalg.norm(new_Ps[i])
+                    new_Ps[i] = (
+                        np.sqrt(X.shape[1]) * new_Ps[i] / np.linalg.norm(new_Ps[i])
+                    )
 
             self.Ps += new_Ps
             self.best_P_indices.append(len(self.Ps) - 1)
@@ -319,45 +320,53 @@ class FEALM():
         return self
 
     def _embeddings_dissim_embedding(self, embedding_Ds, dr_inst=UMAP()):
-        dr_inst.metric = 'precomputed'
+        dr_inst.metric = "precomputed"
         return dr_inst.fit_transform(embedding_Ds)
 
     def _clustering_by_emb_of_Ys(self, emb_of_Ys, n_representatives):
-        cluster_ids = SpectralClustering(
-            n_clusters=n_representatives,
-            assign_labels='discretize').fit(emb_of_Ys).labels_
+        cluster_ids = (
+            SpectralClustering(n_clusters=n_representatives, assign_labels="discretize")
+            .fit(emb_of_Ys)
+            .labels_
+        )
 
         # reordering cluster IDs based on x posisiton of emb_of_Ys
         # to avoid randomly changing IDs when using together with UI
         mean_xpos = []
         for label in np.unique(cluster_ids):
             related_indices = np.where(cluster_ids == label)[0]
-            mean_xpos.append(
-                np.array(emb_of_Ys)[related_indices, :].mean(axis=0)[0])
-        xpos_rank = rankdata(mean_xpos, method='ordinal') - 1
+            mean_xpos.append(np.array(emb_of_Ys)[related_indices, :].mean(axis=0)[0])
+        xpos_rank = rankdata(mean_xpos, method="ordinal") - 1
 
         cluster_ids = np.array([xpos_rank[c_id] for c_id in cluster_ids])
 
         return cluster_ids
 
     def _clustering_by_D_of_Ys(self, D_of_Ys, n_representatives):
-        cluster_ids = SpectralClustering(
-            n_clusters=n_representatives,
-            assign_labels='discretize',
-            affinity='precomputed').fit(D_of_Ys).labels_
+        cluster_ids = (
+            SpectralClustering(
+                n_clusters=n_representatives,
+                assign_labels="discretize",
+                affinity="precomputed",
+            )
+            .fit(D_of_Ys)
+            .labels_
+        )
 
         return cluster_ids
 
-    def find_representative_Ps(self,
-                               X,
-                               n_representatives=10,
-                               Ps=None,
-                               XP_dr_inst=UMAP(),
-                               Ys=None,
-                               Y_graph_func=None,
-                               Y_graph_dissim=None,
-                               Y_dr_inst=UMAP(),
-                               clustering_on_emb_of_Ys=True):
+    def find_representative_Ps(
+        self,
+        X,
+        n_representatives=10,
+        Ps=None,
+        XP_dr_inst=UMAP(),
+        Ys=None,
+        Y_graph_func=None,
+        Y_graph_dissim=None,
+        Y_dr_inst=UMAP(),
+        clustering_on_emb_of_Ys=True,
+    ):
         """Find representative projection matrices from Ps.
         Parameters
         ----------
@@ -409,15 +418,12 @@ class FEALM():
         Gs_of_Ys = [Y_graph_func(Y) for Y in Ys]
         D_of_Ys = self._dist_comp_parallel(Gs_of_Ys, dist_func=Y_graph_dissim)
 
-        emb_of_Ys = self._embeddings_dissim_embedding(D_of_Ys,
-                                                      dr_inst=Y_dr_inst)
+        emb_of_Ys = self._embeddings_dissim_embedding(D_of_Ys, dr_inst=Y_dr_inst)
 
         if clustering_on_emb_of_Ys:
-            cluster_ids = self._clustering_by_emb_of_Ys(
-                emb_of_Ys, n_representatives)
+            cluster_ids = self._clustering_by_emb_of_Ys(emb_of_Ys, n_representatives)
         else:
-            cluster_ids = self._clustering_by_D_of_Ys(D_of_Ys,
-                                                      n_representatives)
+            cluster_ids = self._clustering_by_D_of_Ys(D_of_Ys, n_representatives)
 
         # get Y closeset to each cluster center
         closest_Y_indices = []
@@ -425,20 +431,22 @@ class FEALM():
             related_indices = np.where(cluster_ids == label)[0]
             mean_pos = emb_of_Ys[related_indices, :].mean(axis=0)
 
-            closest_Y_idx = related_indices[np.argsort(
-                np.sum((emb_of_Ys[related_indices, :] - mean_pos)**2,
-                       axis=1))[0]]
+            closest_Y_idx = related_indices[
+                np.argsort(
+                    np.sum((emb_of_Ys[related_indices, :] - mean_pos) ** 2, axis=1)
+                )[0]
+            ]
             closest_Y_indices.append(closest_Y_idx)
 
         repr_Ys = [Ys[idx] for idx in closest_Y_indices]
         repr_Ps = [Ps[idx] for idx in closest_Y_indices]
 
         return {
-            'repr_Ps': repr_Ps,
-            'repr_Ys': repr_Ys,
-            'repr_indices': closest_Y_indices,
-            'cluster_ids': cluster_ids,
-            'Ys': Ys,
-            'D_of_Ys': D_of_Ys,
-            'emb_of_Ys': emb_of_Ys,
+            "repr_Ps": repr_Ps,
+            "repr_Ys": repr_Ys,
+            "repr_indices": closest_Y_indices,
+            "cluster_ids": cluster_ids,
+            "Ys": Ys,
+            "D_of_Ys": D_of_Ys,
+            "emb_of_Ys": emb_of_Ys,
         }

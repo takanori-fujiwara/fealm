@@ -36,28 +36,12 @@ Setup
   
 * Note: Tested on macOS Sonoma, Ubuntu 22.0.4 LTS, and Windows 10.
 
+* Note (Feb 7, 2025): Current pathos version does not work well with UMAP. And n_jobs=1 (i.e., no multiprocessing) is applied when using AdaptiveNelderMead with the default setting.
+
 ### Setup
 * Install FEALM
 
   * Download/Clone this repository
-
-  * If using Python3.12 (otherwise, skip this step), need to edit and directly install pymanopt as follows because pymanopt installer only supports Python3.11 or older.
-
-    - Download and move to the latest `pymanopt` repo: https://github.com/pymanopt/pymanopt.
-    
-    - Edit pyproject.toml
-
-      - Line 2: `requires = ["pip>=22.3.1", "setuptools>=65.6.3"]`
-      
-      - Line 40: `"scipy>=1.0",`
-
-    - Create "_version.py" in "src/pymanopt/" and write down a following line:
-
-      - `__version__ = "2.2.0"`
-
-    - Install `pymanopt`
-
-      - `pip3 install .`
 
   * Move to the downloaded `fealm` repository, then:
 
