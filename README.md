@@ -34,7 +34,7 @@ Setup
 ### Requirements
 * Python3
   
-* Note: Tested on macOS Sonoma, Ubuntu 22.0.4 LTS, and Windows 10.
+* Note: Tested on macOS Sequoia, Ubuntu 22.0.4 LTS, and Windows 10.
 
 * Note (Feb 7, 2025): Current pathos version does not work well with UMAP. And n_jobs=1 (i.e., no multiprocessing) is applied when using AdaptiveNelderMead with the default setting.
 
